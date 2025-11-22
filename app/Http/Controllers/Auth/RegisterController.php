@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\AccountStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\RegisterRequest;
+use App\Models\User;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
+
+class RegisterController extends Controller
+{
+    /**
+     * Show the registration form.
+     */
+    public function showRegistrationForm(): View
+    {
+        return view('auth.register');
+    }
+
+    /**
+     * Handle a registration request.
+     */
+    public function register(RegisterRequest $request): RedirectResponse
+    {
+        try {
+            $user = DB::transaction(function () use ($request) {
+                $user = User::create([
+                    'username' => $request->validated('username'),
+                    'email' => $request->validated('email'),
+                    'password' => $request->validated('password'),
+                    'account_status' => AccountStatus::Unverified,
+                    'max_characters' => 3,
+                    'preferred_language' => $request->validated('preferred_language', 'en'),
+                    'game_settings' => User::getDefaultGameSettings(),
+                    'time_played_total' => 0,
+                ]);
+
+                // Записываем попытку регистрации по IP
+                DB::table('registration_attempts')->insert([
+                    'ip_address' => $request->ip(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                event(new Registered($user));
+
+                return $user;
+            });
+
+            Auth::login($user);
+
+            return redirect()->route('dashboard')
+                ->with('success', 'Регистрация успешна! Добро пожаловать в игру.');
+        } catch (\Exception $e) {
+            Log::error('Registration failed', [
+                'error' => $e->getMessage(),
+                'email' => $request->validated('email'),
+                'username' => $request->validated('username'),
+            ]);
+
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.']);
+        }
+    }
+}
