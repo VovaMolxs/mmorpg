@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\CharacterController as AdminCharacterController;
+use App\Http\Controllers\Admin\ItemController as AdminItemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ItemController;
+use App\Http\Controllers\ItemInstanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -30,6 +34,28 @@ Route::middleware('auth')->group(function () {
     // Character routes
     Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show']);
     Route::get('characters/{character}/skills', [CharacterController::class, 'skills'])->name('characters.skills');
+    Route::get('characters/{character}/inventory', [CharacterController::class, 'inventory'])->name('characters.inventory');
+
+    // Item routes (API)
+    Route::prefix('api')->name('api.')->group(function () {
+        // Items (templates)
+        Route::get('items', [ItemController::class, 'index'])->name('items.index');
+        Route::get('items/{item}', [ItemController::class, 'show'])->name('items.show');
+
+        // Item instances
+        Route::get('item-instances/{itemInstance}', [ItemInstanceController::class, 'show'])->name('item-instances.show');
+
+        // Item instances (character items)
+        Route::prefix('characters/{character}')->group(function () {
+            Route::get('inventory', [ItemInstanceController::class, 'inventory'])->name('characters.inventory');
+            Route::get('equipment', [ItemInstanceController::class, 'equipment'])->name('characters.equipment');
+            Route::post('items/equip', [ItemInstanceController::class, 'equip'])->name('characters.items.equip');
+            Route::post('items/{itemInstance}/unequip', [ItemInstanceController::class, 'unequip'])->name('characters.items.unequip');
+            Route::post('items/drop', [ItemInstanceController::class, 'drop'])->name('characters.items.drop');
+            Route::post('items/move', [ItemInstanceController::class, 'move'])->name('characters.items.move');
+            Route::post('items/use', [ItemInstanceController::class, 'use'])->name('characters.items.use');
+        });
+    });
 });
 
 // Admin routes
@@ -39,4 +65,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('users/{user}/ban', [AdminUserController::class, 'ban'])->name('users.ban');
     Route::post('users/{user}/unban', [AdminUserController::class, 'unban'])->name('users.unban');
     Route::patch('users/{user}/max-characters', [AdminUserController::class, 'updateMaxCharacters'])->name('users.update-max-characters');
+
+    // Characters management
+    Route::resource('characters', AdminCharacterController::class)->only(['index', 'show']);
+    Route::post('characters/{character}/add-item', [AdminCharacterController::class, 'addItem'])->name('characters.add-item');
+    Route::post('characters/{character}/update-skill', [AdminCharacterController::class, 'updateSkill'])->name('characters.update-skill');
+    Route::post('characters/{character}/restore', [AdminCharacterController::class, 'restore'])->name('characters.restore');
+
+    // Items management
+    Route::resource('items', AdminItemController::class)->only(['index', 'create', 'store']);
 });

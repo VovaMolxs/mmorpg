@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Character extends Model
 {
@@ -73,6 +74,40 @@ class Character extends Model
     public function characterSkills()
     {
         return $this->hasMany(CharacterSkill::class);
+    }
+
+    /**
+     * Предметы в инвентаре персонажа.
+     */
+    public function inventoryItems(): HasMany
+    {
+        return $this->hasMany(ItemInstance::class, 'location_id')
+            ->where('location_type', 'inventory');
+    }
+
+    /**
+     * Экипировка персонажа.
+     */
+    public function equipment(): HasMany
+    {
+        return $this->hasMany(CharacterEquipment::class);
+    }
+
+    /**
+     * Экипированные предметы.
+     */
+    public function equippedItems(): HasMany
+    {
+        return $this->hasMany(ItemInstance::class, 'location_id')
+            ->where('location_type', 'equipped');
+    }
+
+    /**
+     * Квестовые предметы персонажа.
+     */
+    public function questItems(): HasMany
+    {
+        return $this->hasMany(ItemInstance::class, 'owner_id');
     }
 
     /**

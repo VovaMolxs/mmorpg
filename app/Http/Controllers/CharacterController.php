@@ -156,4 +156,48 @@ class CharacterController extends Controller
             'allSkills' => $allSkills,
         ]);
     }
+
+    /**
+     * Display character inventory.
+     */
+    public function inventory(Character $character): View
+    {
+        if ($character->user_id !== auth()->id()) {
+            abort(403, 'Доступ запрещен.');
+        }
+
+        // Загружаем инвентарь с информацией о предметах
+        $inventoryItems = $character->inventoryItems()
+            ->with('item')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Загружаем экипировку
+        $equipment = $character->equipment()
+            ->with('itemInstance.item')
+            ->get()
+            ->keyBy('slot');
+
+        // Определяем слоты экипировки
+        $equipmentSlots = [
+            'weapon_main' => 'Основное оружие',
+            'weapon_offhand' => 'Доп. оружие',
+            'head' => 'Голова',
+            'chest' => 'Грудь',
+            'legs' => 'Ноги',
+            'hands' => 'Руки',
+            'feet' => 'Ступни',
+            'amulet' => 'Амулет',
+            'ring1' => 'Кольцо 1',
+            'ring2' => 'Кольцо 2',
+            'earring' => 'Серьга',
+        ];
+
+        return view('characters.inventory', [
+            'character' => $character,
+            'inventoryItems' => $inventoryItems,
+            'equipment' => $equipment,
+            'equipmentSlots' => $equipmentSlots,
+        ]);
+    }
 }

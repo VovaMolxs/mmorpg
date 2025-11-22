@@ -14,6 +14,12 @@
                 Навыки и характеристики
             </a>
             <a
+                href="{{ route('characters.inventory', $character) }}"
+                class="px-3 sm:px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white font-medium whitespace-nowrap text-sm sm:text-base"
+            >
+                Инвентарь
+            </a>
+            <a
                 href="{{ route('characters.index') }}"
                 class="px-3 sm:px-4 py-2 border border-[#19140035] dark:border-[#3E3E3A] rounded hover:border-[#1915014a] dark:hover:border-[#62605b] whitespace-nowrap text-sm sm:text-base"
             >
