@@ -47,15 +47,30 @@
     </div>
 
     <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
-        <h2 class="text-xl font-semibold mb-4">Система персонажей</h2>
-        <p class="text-gray-600 dark:text-gray-400 mb-4">
-            Система создания персонажей будет доступна в ближайшее время.
-        </p>
-        <div class="bg-gray-100 dark:bg-[#0a0a0a] rounded p-4 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-                Здесь будет отображаться список ваших персонажей
-            </p>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+            <h2 class="text-xl font-semibold">Система персонажей</h2>
+            <a
+                href="{{ route('characters.index') }}"
+                class="px-3 sm:px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white font-medium whitespace-nowrap text-sm sm:text-base w-full sm:w-auto text-center"
+            >
+                Управление персонажами
+            </a>
         </div>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+            У вас {{ $user->characters()->count() }} из {{ $user->max_characters }} персонажей.
+        </p>
+        @if($user->canCreateCharacter())
+            <a
+                href="{{ route('characters.create') }}"
+                class="inline-block px-4 py-2 border border-[#19140035] dark:border-[#3E3E3A] rounded hover:border-[#1915014a] dark:hover:border-[#62605b]"
+            >
+                Создать нового персонажа
+            </a>
+        @else
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Достигнут лимит персонажей. Удалите существующего персонажа для создания нового.
+            </p>
+        @endif
     </div>
 
     @if(!$user->isVerified())

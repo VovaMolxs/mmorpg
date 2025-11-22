@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,10 @@ Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Character routes
+    Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show']);
+    Route::get('characters/{character}/skills', [CharacterController::class, 'skills'])->name('characters.skills');
 });
 
 // Admin routes

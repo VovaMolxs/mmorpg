@@ -41,7 +41,6 @@ class RegisterController extends Controller
                     'time_played_total' => 0,
                 ]);
 
-                // Записываем попытку регистрации по IP
                 DB::table('registration_attempts')->insert([
                     'ip_address' => $request->ip(),
                     'created_at' => now(),

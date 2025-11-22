@@ -4,11 +4,11 @@
 
 @section('content')
 <div class="max-w-4xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-semibold">Пользователь: {{ $user->username }}</h1>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <h1 class="text-2xl sm:text-3xl font-semibold break-words">Пользователь: {{ $user->username }}</h1>
         <a
             href="{{ route('admin.users.index') }}"
-            class="px-4 py-2 border border-[#19140035] dark:border-[#3E3E3A] rounded hover:border-[#1915014a] dark:hover:border-[#62605b]"
+            class="px-3 sm:px-4 py-2 border border-[#19140035] dark:border-[#3E3E3A] rounded hover:border-[#1915014a] dark:hover:border-[#62605b] whitespace-nowrap text-sm sm:text-base w-full sm:w-auto text-center"
         >
             Назад к списку
         </a>
@@ -46,7 +46,7 @@
         <form method="POST" action="{{ route('admin.users.update-status', $user) }}" class="mb-4">
             @csrf
             @method('PATCH')
-            <div class="flex gap-4 items-end">
+            <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end">
                 <div class="flex-1">
                     <label for="account_status" class="block text-sm font-medium mb-2">Статус аккаунта</label>
                     <select
@@ -63,7 +63,7 @@
                 </div>
                 <button
                     type="submit"
-                    class="px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white"
+                    class="px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white whitespace-nowrap"
                 >
                     Обновить статус
                 </button>
@@ -100,7 +100,7 @@
         <form method="POST" action="{{ route('admin.users.update-max-characters', $user) }}">
             @csrf
             @method('PATCH')
-            <div class="flex gap-4 items-end">
+            <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end">
                 <div class="flex-1">
                     <label for="max_characters" class="block text-sm font-medium mb-2">Максимум персонажей</label>
                     <input
@@ -116,7 +116,7 @@
                 </div>
                 <button
                     type="submit"
-                    class="px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white"
+                    class="px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white whitespace-nowrap"
                 >
                     Обновить лимит
                 </button>

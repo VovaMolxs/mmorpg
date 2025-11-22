@@ -5,6 +5,7 @@ namespace App\Models;
 use App\AccountStatus;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -112,5 +113,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function addTimePlayed(int $seconds): void
     {
         $this->increment('time_played_total', $seconds);
+    }
+
+    /**
+     * Get the characters for the user.
+     */
+    public function characters(): HasMany
+    {
+        return $this->hasMany(Character::class);
+    }
+
+    /**
+     * Check if user can create more characters.
+     */
+    public function canCreateCharacter(): bool
+    {
+        return $this->characters()->count() < $this->max_characters;
     }
 }
