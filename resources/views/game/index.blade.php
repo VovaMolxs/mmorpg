@@ -90,6 +90,14 @@
                 </div>
             </div>
 
+            <!-- NPC в локации -->
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">NPC в локации</h2>
+                <div id="npcs-content">
+                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                </div>
+            </div>
+
             <!-- Предметы в локации -->
             <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
                 <h2 class="text-xl font-semibold mb-4">Предметы в локации</h2>
@@ -267,6 +275,7 @@
                 renderLocation(data.location);
                 renderExits(data.exits || []);
                 renderItems(data.items || []);
+                renderNpcs(data.npcs || []);
             } else {
                 document.getElementById('location-content').innerHTML = 
                     '<p class="text-red-600 dark:text-red-400">Ошибка загрузки локации: ' + (data.error || 'Неизвестная ошибка') + '</p>';
@@ -375,6 +384,133 @@
         document.getElementById('exits-content').innerHTML = exitsHtml;
     }
 
+    // Функция отображения NPC
+    function renderNpcs(npcs) {
+        if (!npcs || npcs.length === 0) {
+            document.getElementById('npcs-content').innerHTML = 
+                '<p class="text-gray-600 dark:text-gray-400">В локации нет NPC</p>';
+            return;
+        }
+
+        const npcsHtml = npcs.map(npc => {
+            // Определяем цвет здоровья
+            let healthColor = 'bg-green-600';
+            if (npc.health_percentage < 25) {
+                healthColor = 'bg-red-600';
+            } else if (npc.health_percentage < 50) {
+                healthColor = 'bg-yellow-600';
+            } else if (npc.health_percentage < 75) {
+                healthColor = 'bg-orange-600';
+            }
+
+            // Определяем цвет маны
+            const manaColor = 'bg-blue-600';
+
+            // Бейджи для типа NPC
+            const typeBadges = [];
+            if (npc.is_hostile) {
+                typeBadges.push('<span class="px-2 py-1 text-xs rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Враждебный</span>');
+            }
+            if (npc.is_merchant) {
+                typeBadges.push('<span class="px-2 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Торговец</span>');
+            }
+            if (npc.is_teacher) {
+                typeBadges.push('<span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Учитель</span>');
+            }
+            if (npc.is_quest_giver) {
+                typeBadges.push('<span class="px-2 py-1 text-xs rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Квестодатель</span>');
+            }
+
+            // Поведение AI
+            const behaviorNames = {
+                'passive': 'Пассивный',
+                'neutral': 'Нейтральный',
+                'aggressive': 'Агрессивный'
+            };
+            const behaviorName = behaviorNames[npc.ai_behavior] || npc.ai_behavior;
+
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-lg">${escapeHtml(npc.name)}</h3>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Ур. ${npc.level}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${escapeHtml(npc.description || '')}</p>
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                ${typeBadges.join('')}
+                                <span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                    ${escapeHtml(behaviorName)}
+                                </span>
+                            </div>
+                            
+                            <!-- Здоровье -->
+                            <div class="mb-2">
+                                <div class="flex items-center justify-between text-sm mb-1">
+                                    <span class="text-gray-600 dark:text-gray-400">Здоровье</span>
+                                    <span class="font-medium">${npc.health_current} / ${npc.health_max}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div 
+                                        class="${healthColor} h-2 rounded-full transition-all duration-300" 
+                                        style="width: ${Math.max(0, Math.min(100, npc.health_percentage))}%"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <!-- Мана -->
+                            <div class="mb-3">
+                                <div class="flex items-center justify-between text-sm mb-1">
+                                    <span class="text-gray-600 dark:text-gray-400">Мана</span>
+                                    <span class="font-medium">${npc.mana_current} / ${npc.mana_max}</span>
+                                </div>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                    <div 
+                                        class="${manaColor} h-2 rounded-full transition-all duration-300" 
+                                        style="width: ${Math.max(0, Math.min(100, npc.mana_percentage))}%"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <!-- Кнопки действий -->
+                            <div class="flex gap-2 mt-3">
+                                <button
+                                    onclick="interactWithNpc(${npc.id}, '${escapeHtml(npc.name)}')"
+                                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                                >
+                                    Взаимодействовать
+                                </button>
+                                ${npc.is_hostile ? `
+                                    <button
+                                        onclick="attackNpc(${npc.id}, '${escapeHtml(npc.name)}')"
+                                        class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
+                                    >
+                                        Атаковать
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('npcs-content').innerHTML = npcsHtml;
+    }
+
+    // Функция взаимодействия с NPC
+    function interactWithNpc(npcId, npcName) {
+        // TODO: Реализовать взаимодействие с NPC
+        alert(`Взаимодействие с ${npcName} (ID: ${npcId}) - будет реализовано позже`);
+    }
+
+    // Функция атаки на NPC
+    function attackNpc(npcId, npcName) {
+        // TODO: Реализовать атаку на NPC
+        alert(`Атака на ${npcName} (ID: ${npcId}) - будет реализовано позже`);
+    }
+
     // Функция отображения предметов
     function renderItems(items) {
         if (!items || items.length === 0) {
@@ -469,8 +605,8 @@
                 // Обновляем локацию после перемещения
                 renderLocation(data.location);
                 renderExits(data.exits || []);
-                // Перезагружаем предметы
-                loadCurrentLocation();
+                renderItems(data.items || []);
+                renderNpcs(data.npcs || []);
             } else {
                 alert(data.error || 'Ошибка при перемещении');
                 if (data.errors && Array.isArray(data.errors)) {

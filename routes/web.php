@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\CharacterController as AdminCharacterController;
 use App\Http\Controllers\Admin\ItemController as AdminItemController;
 use App\Http\Controllers\Admin\LocationItemSpawnController;
+use App\Http\Controllers\Admin\NpcController as AdminNpcController;
+use App\Http\Controllers\Admin\NpcSpawnController as AdminNpcSpawnController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WorldMapController;
 use App\Http\Controllers\Api\GameSessionController;
@@ -132,4 +134,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Item spawns management
     Route::resource('item-spawns', LocationItemSpawnController::class)->except(['show']);
+
+    // NPCs management
+    Route::resource('npcs', AdminNpcController::class)->except(['show']);
+
+    // NPC spawns management
+    Route::resource('npc-spawns', AdminNpcSpawnController::class)->except(['show']);
 });

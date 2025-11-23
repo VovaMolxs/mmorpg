@@ -6,38 +6,7 @@
 <div class="max-w-7xl mx-auto">
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl sm:text-3xl font-semibold">Управление пользователями</h1>
-        <div class="flex gap-2">
-            <a
-                href="{{ route('admin.characters.online') }}"
-                class="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 whitespace-nowrap"
-            >
-                Онлайн персонажи
-            </a>
-            <a
-                href="{{ route('admin.characters.index') }}"
-                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
-            >
-                Персонажи
-            </a>
-            <a
-                href="{{ route('admin.items.index') }}"
-                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
-            >
-                Предметы
-            </a>
-            <a
-                href="{{ route('admin.world-map.index') }}"
-                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
-            >
-                Карта мира
-            </a>
-            <a
-                href="{{ route('admin.item-spawns.index') }}"
-                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
-            >
-                Спавн предметов
-            </a>
-        </div>
+        @include('admin.partials.menu')
     </div>
 
     <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-4 sm:p-6 mb-6">

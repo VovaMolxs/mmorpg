@@ -40,3 +40,8 @@ Schedule::command('sessions:auto-logout')
 Schedule::command('sessions:cleanup')
     ->dailyAt('03:00')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+// Спавн NPC каждые 2 минуты
+Schedule::command('npcs:spawn')
+    ->everyTwoMinutes()
+    ->appendOutputTo(storage_path('logs/scheduler.log'));

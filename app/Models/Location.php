@@ -95,6 +95,31 @@ class Location extends Model
     }
 
     /**
+     * NPC в этой локации.
+     */
+    public function npcs(): HasMany
+    {
+        return $this->hasMany(Npc::class);
+    }
+
+    /**
+     * Настройки спавна NPC в этой локации.
+     */
+    public function npcSpawns(): HasMany
+    {
+        return $this->hasMany(NpcSpawn::class);
+    }
+
+    /**
+     * Активные NPC в этой локации.
+     */
+    public function activeNpcs(): HasMany
+    {
+        return $this->hasMany(ActiveNpc::class)
+            ->where('is_active', true);
+    }
+
+    /**
      * Проверить, доступна ли локация для персонажа по уровню.
      */
     public function isAccessibleByLevel(int $level): bool

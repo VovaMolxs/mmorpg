@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MoveLocationRequest;
+use App\Models\ActiveNpc;
 use App\Models\Character;
 use App\Models\ItemInstance;
 use App\Models\Location;
@@ -47,10 +48,16 @@ class LocationController extends Controller
             ->with('item')
             ->get();
 
+        $npcs = ActiveNpc::where('location_id', $location->id)
+            ->where('is_active', true)
+            ->with(['npc.stats', 'npc.equipment.item'])
+            ->get();
+
         return response()->json([
             'location' => $this->formatLocation($location),
             'exits' => $this->formatExits($location->exits, $character),
             'items' => $this->formatItems($items),
+            'npcs' => $this->formatNpcs($npcs),
         ]);
     }
 
@@ -118,12 +125,18 @@ class LocationController extends Controller
                 ->with('item')
                 ->get();
 
+            $npcs = ActiveNpc::where('location_id', $newLocation->id)
+                ->where('is_active', true)
+                ->with(['npc.stats', 'npc.equipment.item'])
+                ->get();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Вы успешно переместились',
                 'location' => $this->formatLocation($newLocation),
                 'exits' => $this->formatExits($newLocation->exits, $character),
                 'items' => $this->formatItems($items),
+                'npcs' => $this->formatNpcs($npcs),
             ]);
         } catch (\Exception $e) {
             Log::error('Location move failed', [
@@ -374,6 +387,45 @@ class LocationController extends Controller
                 'position_y' => $itemInstance->position_y,
                 'expires_at' => $itemInstance->expires_at?->toIso8601String(),
                 'expires_in' => $itemInstance->expires_at ? now()->diffInSeconds($itemInstance->expires_at) : null,
+            ];
+        })->filter()->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные NPC для ответа.
+     */
+    private function formatNpcs($npcs): array
+    {
+        return $npcs->map(function (ActiveNpc $activeNpc) {
+            $npc = $activeNpc->npc;
+            $stats = $npc->stats;
+
+            if (! $npc) {
+                return null;
+            }
+
+            $healthPercentage = $activeNpc->getHealthPercentage();
+            $manaPercentage = $activeNpc->getManaPercentage();
+
+            return [
+                'id' => $activeNpc->id,
+                'npc_id' => $npc->id,
+                'name' => $npc->name,
+                'description' => $npc->description,
+                'type' => $npc->type,
+                'is_hostile' => $npc->is_hostile,
+                'is_merchant' => $npc->is_merchant,
+                'is_teacher' => $npc->is_teacher,
+                'is_quest_giver' => $npc->is_quest_giver,
+                'ai_behavior' => $npc->ai_behavior,
+                'level' => $stats?->level ?? 1,
+                'health_current' => $activeNpc->health_current,
+                'health_max' => $stats?->health_max ?? 100,
+                'health_percentage' => round($healthPercentage, 1),
+                'mana_current' => $activeNpc->mana_current,
+                'mana_max' => $stats?->mana_max ?? 50,
+                'mana_percentage' => round($manaPercentage, 1),
+                'spawned_at' => $activeNpc->spawned_at?->toIso8601String(),
             ];
         })->filter()->values()->toArray();
     }
