@@ -146,6 +146,30 @@ class Character extends Model
     }
 
     /**
+     * Квесты персонажа.
+     */
+    public function quests(): HasMany
+    {
+        return $this->hasMany(CharacterQuest::class);
+    }
+
+    /**
+     * Активные квесты персонажа.
+     */
+    public function activeQuests(): HasMany
+    {
+        return $this->hasMany(CharacterQuest::class)->where('status', 'active');
+    }
+
+    /**
+     * Завершенные квесты персонажа.
+     */
+    public function completedQuests(): HasMany
+    {
+        return $this->hasMany(CharacterQuest::class)->where('status', 'completed');
+    }
+
+    /**
      * Вычислить максимальное здоровье на основе силы.
      */
     public function calculateHealthMax(): int
