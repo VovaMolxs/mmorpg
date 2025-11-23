@@ -36,7 +36,7 @@
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">Характеристики</h2>
                 <div class="space-y-3">
                     <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#0a0a0a] transition-colors attribute-item" data-attribute="strength" data-value="{{ $character->strength }}">
@@ -66,6 +66,193 @@
                     <p class="text-sm">
                         <span class="font-medium">Сумма характеристик:</span> {{ $character->getTotalAttributes() }} / 15
                     </p>
+                </div>
+            </div>
+
+            @php
+                $damage = $character->calculateDamage();
+                $physicalDefense = $character->calculatePhysicalDefense();
+                $magicDefense = $character->calculateMagicDefense();
+                $accuracy = $character->calculateAccuracy();
+                $magicAccuracy = $character->calculateMagicAccuracy();
+                $rangedAccuracy = $character->calculateRangedAccuracy();
+                $criticalChance = $character->calculateCriticalChance();
+                $criticalPower = $character->calculateCriticalPower();
+                $magicCriticalChance = $character->calculateMagicCriticalChance();
+                $magicCriticalPower = $character->calculateMagicCriticalPower();
+                $dodge = $character->calculateDodge();
+                $magicDodge = $character->calculateMagicDodge();
+                $spellSuccessChance = $character->calculateSpellSuccessChance();
+                $awareness = $character->calculateAwareness();
+                $stealth = $character->calculateStealth();
+                $healthRegenerationRate = $character->calculateHealthRegenerationRate();
+                $manaRegenerationRate = $character->calculateManaRegenerationRate();
+            @endphp
+
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Производные характеристики</h2>
+                
+                <div class="space-y-4">
+                    <!-- Боевые характеристики -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Боевые характеристики</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Урон</span>
+                                    <span class="text-lg font-bold">{{ $damage['min'] }}-{{ $damage['max'] }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Зависит от силы, оружия и навыков владения</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Физическая защита</span>
+                                    <span class="text-lg font-bold">{{ $physicalDefense }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Зависит от ловкости, брони и навыка защиты</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Магическая защита</span>
+                                    <span class="text-lg font-bold">{{ $magicDefense }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Зависит от интеллекта и сопротивления магии</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Точность и критические удары -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Точность и критические удары</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Точность</span>
+                                    <span class="text-lg font-bold">{{ number_format($accuracy, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Шанс попадания физическими атаками</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Точность магии</span>
+                                    <span class="text-lg font-bold">{{ number_format($magicAccuracy, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Шанс успешного применения заклинаний</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Точность дальнего оружия</span>
+                                    <span class="text-lg font-bold">{{ number_format($rangedAccuracy, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Шанс попадания стрелковым оружием</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Шанс критического удара</span>
+                                    <span class="text-lg font-bold">{{ number_format($criticalChance, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Вероятность крита физической атакой</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Сила критического удара</span>
+                                    <span class="text-lg font-bold">{{ number_format($criticalPower, 2) }}x</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Множитель урона при крите</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Шанс магического крита</span>
+                                    <span class="text-lg font-bold">{{ number_format($magicCriticalChance, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Вероятность крита заклинанием</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Сила магического крита</span>
+                                    <span class="text-lg font-bold">{{ number_format($magicCriticalPower, 2) }}x</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Множитель урона при магическом крите</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Защитные характеристики -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Защитные характеристики</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Уворот</span>
+                                    <span class="text-lg font-bold">{{ number_format($dodge, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Шанс уклониться от физической атаки</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Уворот от магии</span>
+                                    <span class="text-lg font-bold">{{ number_format($magicDodge, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Шанс сопротивления магической атаке</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Магические характеристики -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Магические характеристики</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Шанс применения магии</span>
+                                    <span class="text-lg font-bold">{{ number_format($spellSuccessChance, 1) }}%</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Базовый шанс успеха заклинания</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Восстановление -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Восстановление</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Регенерация здоровья</span>
+                                    <span class="text-lg font-bold">{{ $healthRegenerationRate }} HP</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Восстановление за 15 секунд (базовая: 1, максимум: 8)</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Регенерация маны</span>
+                                    <span class="text-lg font-bold">{{ $manaRegenerationRate }} MP</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Восстановление за 15 секунд (зависит от интеллекта и навыка, максимум: 12)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Социальные/скрытые характеристики -->
+                    <div>
+                        <h3 class="text-lg font-medium mb-3 text-[#f53003] dark:text-[#FF4433]">Социальные характеристики</h3>
+                        <div class="space-y-2">
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Наблюдательность</span>
+                                    <span class="text-lg font-bold">{{ $awareness }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Защита от краж и скрытных действий</p>
+                            </div>
+                            <div class="border border-[#e3e3e0] dark:border-[#3E3E3A] rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-medium">Скрытность</span>
+                                    <span class="text-lg font-bold">{{ $stealth }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Способность оставаться незамеченным</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

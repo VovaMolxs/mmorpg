@@ -370,4 +370,435 @@ class Character extends Model
 
         return $errors;
     }
+
+    /**
+     * Получить уровень навыка по имени.
+     */
+    public function getSkillLevel(string $skillName): int
+    {
+        $characterSkill = $this->characterSkills()
+            ->whereHas('skill', function ($query) use ($skillName) {
+                $query->where('name', $skillName);
+            })
+            ->first();
+
+        return $characterSkill?->level ?? 0;
+    }
+
+    /**
+     * Получить экипированное оружие.
+     */
+    public function getEquippedWeapon(): ?ItemInstance
+    {
+        $equipment = $this->equipment()
+            ->where('slot', 'weapon_main')
+            ->with('itemInstance.item')
+            ->first();
+
+        return $equipment?->itemInstance;
+    }
+
+    /**
+     * Получить сумму защиты от всей экипированной брони.
+     */
+    public function getTotalArmorDefense(): int
+    {
+        $armorSlots = ['head', 'chest', 'legs', 'hands', 'feet'];
+        $totalDefense = 0;
+
+        foreach ($armorSlots as $slot) {
+            $equipment = $this->equipment()
+                ->where('slot', $slot)
+                ->with('itemInstance.item')
+                ->first();
+
+            if ($equipment) {
+                $itemInstance = $equipment->itemInstance;
+                if ($itemInstance && $itemInstance->item) {
+                    $armorData = $itemInstance->item->armor_data;
+                    if ($armorData && isset($armorData['defense'])) {
+                        $totalDefense += (int) $armorData['defense'];
+                    }
+                }
+            }
+        }
+
+        return $totalDefense;
+    }
+
+    /**
+     * Получить тип экипированного оружия.
+     */
+    public function getEquippedWeaponType(): ?string
+    {
+        $weapon = $this->getEquippedWeapon();
+        if (! $weapon || ! $weapon->item) {
+            return null;
+        }
+
+        return $weapon->item->subtype;
+    }
+
+    /**
+     * Получить уровень мастерства для текущего оружия.
+     */
+    public function getWeaponMasteryLevel(): int
+    {
+        $weaponType = $this->getEquippedWeaponType();
+        if (! $weaponType) {
+            return 0;
+        }
+
+        $skillMap = [
+            'sword' => 'sword_mastery',
+            'axe' => 'axe_mastery',
+            'dagger' => 'dagger_mastery',
+            'staff' => 'staff_mastery',
+            'bow' => 'archery',
+            'crossbow' => 'crossbow_mastery',
+        ];
+
+        $skillName = $skillMap[$weaponType] ?? null;
+        if (! $skillName) {
+            return 0;
+        }
+
+        return $this->getSkillLevel($skillName);
+    }
+
+    /**
+     * Рассчитать урон (Damage).
+     */
+    public function calculateDamage(): array
+    {
+        $baseDamage = $this->strength * 2;
+        $weapon = $this->getEquippedWeapon();
+        $weaponMasteryLevel = $this->getWeaponMasteryLevel();
+
+        $minDamage = $baseDamage;
+        $maxDamage = $baseDamage;
+
+        if ($weapon && $weapon->item && $weapon->item->weapon_data) {
+            $weaponData = $weapon->item->weapon_data;
+            $minDamage += $weaponData['damage_min'] ?? 0;
+            $maxDamage += $weaponData['damage_max'] ?? 0;
+        }
+
+        // Бонус от мастерства оружия: +5% урона за уровень
+        $masteryBonus = 1 + ($weaponMasteryLevel * 0.05);
+        $minDamage = (int) ($minDamage * $masteryBonus);
+        $maxDamage = (int) ($maxDamage * $masteryBonus);
+
+        return [
+            'min' => $minDamage,
+            'max' => $maxDamage,
+        ];
+    }
+
+    /**
+     * Рассчитать физическую защиту (Physical Defense).
+     */
+    public function calculatePhysicalDefense(): int
+    {
+        $baseDefense = $this->agility;
+        $armorDefense = $this->getTotalArmorDefense();
+        $defenseSkillLevel = $this->getSkillLevel('defense');
+
+        // Базовая защита от ловкости + защита от брони
+        $totalDefense = $baseDefense + $armorDefense;
+
+        // Бонус от навыка защиты: +2 защиты за уровень
+        $totalDefense += $defenseSkillLevel * 2;
+
+        return $totalDefense;
+    }
+
+    /**
+     * Рассчитать магическую защиту (Magic Defense).
+     */
+    public function calculateMagicDefense(): int
+    {
+        $baseDefense = $this->intelligence;
+        $magicResistanceLevel = $this->getSkillLevel('magic_resistance');
+
+        // Базовая защита от интеллекта
+        $totalDefense = $baseDefense;
+
+        // Бонус от навыка сопротивления магии: +3 защиты за уровень
+        $totalDefense += $magicResistanceLevel * 3;
+
+        return $totalDefense;
+    }
+
+    /**
+     * Рассчитать точность (Accuracy).
+     */
+    public function calculateAccuracy(): float
+    {
+        $baseAccuracy = 20.0; // Базовая точность 50%
+        $agilityBonus = $this->agility * 3; // +3% за единицу ловкости
+        $accuracySkillLevel = $this->getSkillLevel('accuracy');
+
+        $totalAccuracy = $baseAccuracy + $agilityBonus;
+
+        // Бонус от навыка точности: +5% за уровень
+        $totalAccuracy += $accuracySkillLevel * 5;
+
+        return min($totalAccuracy, 95.0); // Максимум 95%
+    }
+
+    /**
+     * Рассчитать точность магии (Magic Accuracy).
+     */
+    public function calculateMagicAccuracy(): float
+    {
+        $baseAccuracy = 20.0; // Базовая точность магии 60%
+        $intelligenceBonus = $this->intelligence * 4; // +4% за единицу интеллекта
+        $spellcastingLevel = $this->getSkillLevel('spellcasting');
+
+        $totalAccuracy = $baseAccuracy + $intelligenceBonus;
+
+        // Бонус от навыка колдовства: +4% за уровень
+        $totalAccuracy += $spellcastingLevel * 4;
+
+        return min($totalAccuracy, 95.0); // Максимум 95%
+    }
+
+    /**
+     * Рассчитать точность дальнего оружия (Ranged Accuracy).
+     */
+    public function calculateRangedAccuracy(): float
+    {
+        $baseAccuracy = 35.0; // Базовая точность дальнего оружия 45%
+        $agilityBonus = $this->agility * 4; // +4% за единицу ловкости
+        $archeryLevel = $this->getSkillLevel('archery');
+        $crossbowLevel = $this->getSkillLevel('crossbow_mastery');
+        $accuracySkillLevel = $this->getSkillLevel('accuracy');
+
+        $totalAccuracy = $baseAccuracy + $agilityBonus;
+
+        // Бонус от навыков стрельбы (берем максимальный)
+        $rangedSkillLevel = max($archeryLevel, $crossbowLevel);
+        $totalAccuracy += $rangedSkillLevel * 6;
+
+        // Бонус от навыка точности: +3% за уровень
+        $totalAccuracy += $accuracySkillLevel * 3;
+
+        return min($totalAccuracy, 95.0); // Максимум 95%
+    }
+
+    /**
+     * Рассчитать шанс критического удара (Critical Chance).
+     */
+    public function calculateCriticalChance(): float
+    {
+        $baseChance = 5.0; // Базовая вероятность 5%
+        $agilityBonus = $this->agility * 0.5; // +0.5% за единицу ловкости
+        $criticalStrikeLevel = $this->getSkillLevel('critical_strike');
+
+        $totalChance = $baseChance + $agilityBonus;
+
+        // Бонус от навыка критических ударов: +2% за уровень
+        $totalChance += $criticalStrikeLevel * 2;
+
+        return min($totalChance, 50.0); // Максимум 50%
+    }
+
+    /**
+     * Рассчитать силу критического удара (Critical Power).
+     */
+    public function calculateCriticalPower(): float
+    {
+        $basePower = 1.5; // Базовый множитель 1.5x
+        $strengthBonus = $this->strength * 0.05; // +0.05x за единицу силы
+        $criticalStrikeLevel = $this->getSkillLevel('critical_strike');
+
+        $totalPower = $basePower + $strengthBonus;
+
+        // Бонус от навыка критических ударов: +0.1x за уровень
+        $totalPower += $criticalStrikeLevel * 0.1;
+
+        return min($totalPower, 3.0); // Максимум 3.0x
+    }
+
+    /**
+     * Рассчитать шанс магического крита (Magic Critical Chance).
+     */
+    public function calculateMagicCriticalChance(): float
+    {
+        $baseChance = 3.0; // Базовая вероятность 3%
+        $intelligenceBonus = $this->intelligence * 0.5; // +0.5% за единицу интеллекта
+        $magicCriticalLevel = $this->getSkillLevel('magic_critical');
+
+        $totalChance = $baseChance + $intelligenceBonus;
+
+        // Бонус от навыка магических критических ударов: +2% за уровень
+        $totalChance += $magicCriticalLevel * 2;
+
+        return min($totalChance, 40.0); // Максимум 40%
+    }
+
+    /**
+     * Рассчитать силу магического крита (Magic Critical Power).
+     */
+    public function calculateMagicCriticalPower(): float
+    {
+        $basePower = 1.5; // Базовый множитель 1.5x
+        $intelligenceBonus = $this->intelligence * 0.05; // +0.05x за единицу интеллекта
+        $magicCriticalLevel = $this->getSkillLevel('magic_critical');
+
+        $totalPower = $basePower + $intelligenceBonus;
+
+        // Бонус от навыка магических критических ударов: +0.1x за уровень
+        $totalPower += $magicCriticalLevel * 0.1;
+
+        return min($totalPower, 2.5); // Максимум 2.5x
+    }
+
+    /**
+     * Рассчитать уворот (Dodge).
+     */
+    public function calculateDodge(): float
+    {
+        $baseDodge = 5.0; // Базовая вероятность 5%
+        $agilityBonus = $this->agility * 2; // +2% за единицу ловкости
+        $dodgeSkillLevel = $this->getSkillLevel('Уклонение'); // Используем существующий навык
+
+        $totalDodge = $baseDodge + $agilityBonus;
+
+        // Бонус от навыка уклонения: +3% за уровень
+        $totalDodge += $dodgeSkillLevel * 3;
+
+        return min($totalDodge, 50.0); // Максимум 50%
+    }
+
+    /**
+     * Рассчитать уворот от магии (Magic Dodge).
+     */
+    public function calculateMagicDodge(): float
+    {
+        $baseDodge = 3.0; // Базовая вероятность 3%
+        $intelligenceBonus = $this->intelligence * 1.5; // +1.5% за единицу интеллекта
+        $magicDodgeLevel = $this->getSkillLevel('magic_dodge');
+
+        $totalDodge = $baseDodge + $intelligenceBonus;
+
+        // Бонус от навыка уворота от магии: +2% за уровень
+        $totalDodge += $magicDodgeLevel * 2;
+
+        return min($totalDodge, 40.0); // Максимум 40%
+    }
+
+    /**
+     * Рассчитать шанс применения магии (Spell Success Chance).
+     */
+    public function calculateSpellSuccessChance(): float
+    {
+        $baseChance = 70.0; // Базовая вероятность 70%
+        $intelligenceBonus = $this->intelligence * 3; // +3% за единицу интеллекта
+        $spellcastingLevel = $this->getSkillLevel('spellcasting');
+
+        $totalChance = $baseChance + $intelligenceBonus;
+
+        // Бонус от навыка колдовства: +3% за уровень
+        $totalChance += $spellcastingLevel * 3;
+
+        return min($totalChance, 95.0); // Максимум 95%
+    }
+
+    /**
+     * Рассчитать наблюдательность (Awareness).
+     */
+    public function calculateAwareness(): int
+    {
+        $baseAwareness = 40.0;
+        $awarenessSkillLevel = $this->getSkillLevel('awareness');
+
+        $totalAwareness = $baseAwareness;
+
+        // Бонус от навыка наблюдательности: +2 за уровень
+        $totalAwareness += $awarenessSkillLevel * 0.5;
+
+        return $totalAwareness;
+    }
+
+    /**
+     * Рассчитать скрытность (Stealth).
+     */
+    public function calculateStealth(): int
+    {
+        $baseStealth = 20.0;
+        $stealthSkillLevel = $this->getSkillLevel('stealth');
+
+        // Базовая скрытность от ловкости
+        $totalStealth = $baseStealth * $this->agility * 0.5;
+
+        // Бонус от навыка скрытности: +2 за уровень
+        $totalStealth += $stealthSkillLevel * 2;
+
+        return $totalStealth;
+    }
+
+    /**
+     * Рассчитать шанс украсть (Steal Chance) против цели.
+     */
+    public function calculateStealChance(Character $target): float
+    {
+        $baseChance = 20.0; // Базовая вероятность 20%
+        $agilityBonus = $this->agility * 2; // +2% за единицу ловкости
+        $stealingSkillLevel = $this->getSkillLevel('stealing');
+        $targetAwareness = $target->calculateAwareness();
+
+        $totalChance = $baseChance + $agilityBonus;
+
+        // Бонус от навыка воровства: +5% за уровень
+        $totalChance += $stealingSkillLevel * 5;
+
+        // Штраф от наблюдательности цели: -3% за единицу наблюдательности
+        $totalChance -= $targetAwareness * 3;
+
+        return max(min($totalChance, 80.0), 5.0); // От 5% до 80%
+    }
+
+    /**
+     * Рассчитать скорость регенерации здоровья за 15 секунд.
+     * Базовая скорость: 1 единица за 15 секунд.
+     * На максимальном уровне навыка (10): 8 единиц за 15 секунд.
+     */
+    public function calculateHealthRegenerationRate(): int
+    {
+        $baseRate = 1; // Базовая скорость: 1 единица за 15 секунд
+        $healthRegenerationLevel = $this->getSkillLevel('health_regeneration');
+
+        // Каждый уровень навыка добавляет 0.7 единицы регенерации
+        // На уровне 10: 1 + round(10 * 0.7) = 1 + 7 = 8 единиц
+        // Используем round для правильного округления
+        $skillBonus = (int) round($healthRegenerationLevel * 0.7);
+
+        return $baseRate + $skillBonus;
+    }
+
+    /**
+     * Рассчитать скорость регенерации маны за 15 секунд.
+     * Базовая скорость: 1 единица за 15 секунд при интеллекте 1 и навыке 0.
+     * При интеллекте 10 и навыке 10: 12 единиц за 15 секунд.
+     */
+    public function calculateManaRegenerationRate(): int
+    {
+        $baseRate = 1; // Базовая скорость: 1 единица за 15 секунд
+        $manaRegenerationLevel = $this->getSkillLevel('mana_regeneration');
+
+        // Интеллект добавляет (intelligence - 1) * 0.5 единицы регенерации
+        // При интеллекте 1: 0, при интеллекте 10: 4.5
+        $intelligenceBonus = ($this->intelligence - 1) * 0.5;
+
+        // Навык добавляет skill_level * 0.65 единицы регенерации
+        // При навыке 0: 0, при навыке 10: 6.5
+        $skillBonus = $manaRegenerationLevel * 0.65;
+
+        // Итого: 1 + 4.5 + 6.5 = 12 при интеллекте 10 и навыке 10
+        $totalRate = $baseRate + $intelligenceBonus + $skillBonus;
+
+        return (int) round($totalRate);
+    }
 }

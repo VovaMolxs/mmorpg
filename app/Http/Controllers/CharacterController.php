@@ -108,7 +108,7 @@ class CharacterController extends Controller
             abort(403, 'Доступ запрещен.');
         }
 
-        $character->load('characterSkills.skill');
+        $character->load('characterSkills.skill', 'equipment.itemInstance.item');
 
         return view('characters.show', [
             'character' => $character,
@@ -124,7 +124,7 @@ class CharacterController extends Controller
             abort(403, 'Доступ запрещен.');
         }
 
-        $character->load('characterSkills.skill');
+        $character->load('characterSkills.skill', 'equipment.itemInstance.item');
 
         $learnedSkills = $character->characterSkills()
             ->with('skill')
