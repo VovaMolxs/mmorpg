@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class ThrottleRegistrations
@@ -21,21 +22,42 @@ class ThrottleRegistrations
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $ipAddress = $request->ip();
+        try {
+            $ipAddress = $request->ip();
 
-        $registrationsCount = DB::table('registration_attempts')
-            ->where('ip_address', $ipAddress)
-            ->where('created_at', '>=', now()->subDay())
-            ->count();
+            $registrationsCount = DB::table('registration_attempts')
+                ->where('ip_address', $ipAddress)
+                ->where('created_at', '>=', now()->subDay())
+                ->count();
 
-        if ($registrationsCount >= self::MAX_REGISTRATIONS_PER_IP) {
-            return redirect()->back()
-                ->withErrors([
-                    'error' => 'Превышен лимит регистраций с вашего IP адреса. Пожалуйста, попробуйте позже.',
-                ])
-                ->withInput();
+            if ($registrationsCount >= self::MAX_REGISTRATIONS_PER_IP) {
+                // Для POST запросов используем redirect на страницу регистрации
+                if ($request->isMethod('POST')) {
+                    return redirect()->route('register')
+                        ->withErrors([
+                            'error' => 'Превышен лимит регистраций с вашего IP адреса. Пожалуйста, попробуйте позже.',
+                        ])
+                        ->withInput();
+                }
+
+                return redirect()->back()
+                    ->withErrors([
+                        'error' => 'Превышен лимит регистраций с вашего IP адреса. Пожалуйста, попробуйте позже.',
+                    ])
+                    ->withInput();
+            }
+
+            return $next($request);
+        } catch (\Exception $e) {
+            // Если произошла ошибка с базой данных, пропускаем проверку
+            // чтобы не блокировать регистрацию из-за проблем с БД
+            Log::error('ThrottleRegistrations middleware error', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return $next($request);
         }
-
-        return $next($request);
     }
 }

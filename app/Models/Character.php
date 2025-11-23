@@ -59,6 +59,14 @@ class Character extends Model
     }
 
     /**
+     * Текущая локация персонажа.
+     */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    /**
      * Навыки персонажа.
      */
     public function skills(): BelongsToMany

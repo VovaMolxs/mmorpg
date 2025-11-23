@@ -3,12 +3,15 @@
 use App\Http\Controllers\Admin\CharacterController as AdminCharacterController;
 use App\Http\Controllers\Admin\ItemController as AdminItemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\ItemInstanceController;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -26,6 +29,26 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->name('logout');
+
+// Email Verification Routes
+Route::middleware('auth')->group(function () {
+    Route::get('/email/verify', function () {
+        return view('auth.verify-email');
+    })->name('verification.notice');
+
+    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+        $request->fulfill();
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Email успешно подтвержден!');
+    })->middleware('signed')->name('verification.verify');
+
+    Route::post('/email/verification-notification', function (Request $request) {
+        $request->user()->sendEmailVerificationNotification();
+
+        return back()->with('status', 'verification-link-sent');
+    })->middleware('throttle:6,1')->name('verification.send');
+});
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {
@@ -55,6 +78,12 @@ Route::middleware('auth')->group(function () {
             Route::post('items/move', [ItemInstanceController::class, 'move'])->name('characters.items.move');
             Route::post('items/use', [ItemInstanceController::class, 'use'])->name('characters.items.use');
         });
+
+        // Location routes (API)
+        Route::get('location/current', [LocationController::class, 'current'])->name('location.current');
+        Route::post('location/move', [LocationController::class, 'move'])->name('location.move');
+        Route::get('location/{location}/exits', [LocationController::class, 'exits'])->name('location.exits');
+        Route::get('world/map', [LocationController::class, 'map'])->name('world.map');
     });
 });
 

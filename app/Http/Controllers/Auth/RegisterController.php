@@ -29,14 +29,16 @@ class RegisterController extends Controller
     public function register(RegisterRequest $request): RedirectResponse
     {
         try {
-            $user = DB::transaction(function () use ($request) {
+            $validated = $request->validated();
+
+            $user = DB::transaction(function () use ($validated, $request) {
                 $user = User::create([
-                    'username' => $request->validated('username'),
-                    'email' => $request->validated('email'),
-                    'password' => $request->validated('password'),
+                    'username' => $validated['username'],
+                    'email' => $validated['email'],
+                    'password' => $validated['password'],
                     'account_status' => AccountStatus::Unverified,
                     'max_characters' => 3,
-                    'preferred_language' => $request->validated('preferred_language', 'en'),
+                    'preferred_language' => $validated['preferred_language'] ?? 'en',
                     'game_settings' => User::getDefaultGameSettings(),
                     'time_played_total' => 0,
                 ]);
@@ -47,10 +49,10 @@ class RegisterController extends Controller
                     'updated_at' => now(),
                 ]);
 
-                event(new Registered($user));
-
                 return $user;
             });
+
+            event(new Registered($user));
 
             Auth::login($user);
 
@@ -59,8 +61,9 @@ class RegisterController extends Controller
         } catch (\Exception $e) {
             Log::error('Registration failed', [
                 'error' => $e->getMessage(),
-                'email' => $request->validated('email'),
-                'username' => $request->validated('username'),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return back()
