@@ -87,6 +87,14 @@ class Location extends Model
     }
 
     /**
+     * Настройки спавна предметов в этой локации.
+     */
+    public function itemSpawns(): HasMany
+    {
+        return $this->hasMany(LocationItemSpawn::class);
+    }
+
+    /**
      * Проверить, доступна ли локация для персонажа по уровню.
      */
     public function isAccessibleByLevel(int $level): bool

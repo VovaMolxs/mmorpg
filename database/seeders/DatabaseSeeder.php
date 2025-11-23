@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             LevelsAndSkillsSeeder::class,
             WorldSeeder::class,
+            ItemsSeeder::class,
         ]);
     }
 }

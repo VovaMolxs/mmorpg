@@ -32,6 +32,12 @@
                 Карта мира
             </a>
             <a
+                href="{{ route('admin.item-spawns.index') }}"
+                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
+            >
+                Спавн предметов
+            </a>
+            <a
                 href="{{ route('admin.items.create') }}"
                 class="px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white whitespace-nowrap"
             >
@@ -118,12 +124,29 @@
                             {{ number_format($item->value, 0, ',', ' ') }}
                         </td>
                         <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
-                            <a
-                                href="#"
-                                class="text-[#f53003] dark:text-[#FF4433] hover:underline"
-                            >
-                                Просмотр
-                            </a>
+                            <div class="flex gap-2">
+                                <a
+                                    href="{{ route('admin.items.edit', $item) }}"
+                                    class="text-[#f53003] dark:text-[#FF4433] hover:underline"
+                                >
+                                    Редактировать
+                                </a>
+                                <form
+                                    method="POST"
+                                    action="{{ route('admin.items.destroy', $item) }}"
+                                    class="inline"
+                                    onsubmit="return confirm('Вы уверены, что хотите удалить этот предмет?');"
+                                >
+                                    @csrf
+                                    @method('DELETE')
+                                    <button
+                                        type="submit"
+                                        class="text-red-600 dark:text-red-400 hover:underline"
+                                    >
+                                        Удалить
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty

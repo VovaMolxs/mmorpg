@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\CharacterController as AdminCharacterController;
 use App\Http\Controllers\Admin\ItemController as AdminItemController;
+use App\Http\Controllers\Admin\LocationItemSpawnController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WorldMapController;
 use App\Http\Controllers\Api\GameSessionController;
@@ -119,7 +120,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('characters/{character}/move', [AdminCharacterController::class, 'move'])->name('characters.move');
 
     // Items management
-    Route::resource('items', AdminItemController::class)->only(['index', 'create', 'store']);
+    Route::resource('items', AdminItemController::class)->except(['show']);
 
     // World map management
     Route::get('world-map', [WorldMapController::class, 'index'])->name('world-map.index');
@@ -128,4 +129,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('world-map/{location}', [WorldMapController::class, 'update'])->name('world-map.update');
     Route::post('world-map/{location}/exits', [WorldMapController::class, 'updateExits'])->name('world-map.update-exits');
     Route::delete('world-map/{location}', [WorldMapController::class, 'destroy'])->name('world-map.destroy');
+
+    // Item spawns management
+    Route::resource('item-spawns', LocationItemSpawnController::class)->except(['show']);
 });

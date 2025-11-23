@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreItemRequest;
+use App\Http\Requests\Admin\UpdateItemRequest;
 use App\Models\Item;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -298,5 +299,206 @@ class ItemController extends Controller
             ],
             default => [],
         };
+    }
+
+    /**
+     * Show the form for editing the specified item.
+     */
+    public function edit(Item $item): View
+    {
+        $types = [
+            'weapon' => [
+                'label' => 'Оружие',
+                'subtypes' => [
+                    'sword' => 'Меч',
+                    'axe' => 'Топор',
+                    'dagger' => 'Кинжал',
+                    'bow' => 'Лук',
+                    'crossbow' => 'Арбалет',
+                    'staff' => 'Посох',
+                ],
+            ],
+            'armor' => [
+                'label' => 'Броня',
+                'subtypes' => [
+                    'helmet' => 'Шлем',
+                    'chest' => 'Нагрудник',
+                    'legs' => 'Поножи',
+                    'hands' => 'Перчатки',
+                    'feet' => 'Ботинки',
+                ],
+            ],
+            'jewelry' => [
+                'label' => 'Бижутерия',
+                'subtypes' => [
+                    'amulet' => 'Амулет',
+                    'ring' => 'Кольцо',
+                    'earring' => 'Серьга',
+                ],
+            ],
+            'resource' => [
+                'label' => 'Ресурс',
+                'subtypes' => [
+                    'herb' => 'Трава',
+                    'ore' => 'Руда',
+                    'gem' => 'Драгоценный камень',
+                    'leather' => 'Кожа',
+                ],
+            ],
+            'potion' => [
+                'label' => 'Зелье',
+                'subtypes' => [
+                    'health' => 'Здоровье',
+                    'mana' => 'Мана',
+                    'buff' => 'Усиление',
+                ],
+            ],
+            'consumable' => [
+                'label' => 'Расходник',
+                'subtypes' => [
+                    'arrow' => 'Стрела',
+                    'bolt' => 'Болт',
+                ],
+            ],
+            'currency' => [
+                'label' => 'Валюта',
+                'subtypes' => [
+                    'money' => 'Деньги',
+                ],
+            ],
+            'rune' => [
+                'label' => 'Руна',
+                'subtypes' => [
+                    'offensive' => 'Атакующая',
+                    'defensive' => 'Защитная',
+                    'utility' => 'Утилитарная',
+                    'summoning' => 'Призывающая',
+                ],
+            ],
+            'scroll' => [
+                'label' => 'Свиток',
+                'subtypes' => [
+                    'offensive' => 'Атакующий',
+                    'defensive' => 'Защитный',
+                    'utility' => 'Утилитарный',
+                    'teleport' => 'Телепорт',
+                ],
+            ],
+        ];
+
+        $rarities = [
+            'common' => 'Обычный',
+            'uncommon' => 'Необычный',
+            'rare' => 'Редкий',
+            'epic' => 'Эпический',
+            'legendary' => 'Легендарный',
+        ];
+
+        return view('admin.items.edit', [
+            'item' => $item,
+            'types' => $types,
+            'rarities' => $rarities,
+        ]);
+    }
+
+    /**
+     * Update the specified item.
+     */
+    public function update(UpdateItemRequest $request, Item $item): RedirectResponse
+    {
+        try {
+            DB::transaction(function () use ($request, $item) {
+                $validated = $request->validated();
+
+                // Подготовка JSON данных
+                $data = [
+                    'name' => $validated['name'],
+                    'description' => $validated['description'] ?? null,
+                    'type' => $validated['type'],
+                    'subtype' => $validated['subtype'] ?? null,
+                    'rarity' => $validated['rarity'],
+                    'level_required' => $validated['level_required'] ?? 1,
+                    'stackable' => $validated['stackable'] ?? false,
+                    'max_stack' => $validated['max_stack'] ?? 1,
+                    'weight' => $validated['weight'] ?? 0,
+                    'value' => $validated['value'] ?? 0,
+                ];
+
+                // Требования
+                if (isset($validated['requirements'])) {
+                    $data['requirements'] = $this->prepareRequirements($validated['requirements']);
+                } else {
+                    $data['requirements'] = null;
+                }
+
+                // Специфичные данные в зависимости от типа
+                $type = $validated['type'];
+                if (isset($validated["{$type}_data"])) {
+                    $data["{$type}_data"] = $this->prepareTypeData($type, $validated["{$type}_data"]);
+                } else {
+                    // Очищаем данные других типов
+                    $allTypes = ['weapon', 'armor', 'jewelry', 'potion', 'rune', 'scroll', 'resource'];
+                    foreach ($allTypes as $dataType) {
+                        if ($dataType !== $type) {
+                            $data["{$dataType}_data"] = null;
+                        }
+                    }
+                }
+
+                $item->update($data);
+            });
+
+            return redirect()->route('admin.items.index')
+                ->with('success', 'Предмет успешно обновлен!');
+        } catch (\Exception $e) {
+            Log::error('Item update failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'item_id' => $item->id,
+                'user_id' => $request->user()?->id,
+            ]);
+
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Произошла ошибка при обновлении предмета: '.$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Remove the specified item.
+     */
+    public function destroy(Item $item): RedirectResponse
+    {
+        try {
+            // Проверяем, есть ли экземпляры этого предмета
+            $instancesCount = $item->instances()->count();
+
+            if ($instancesCount > 0) {
+                return redirect()->route('admin.items.index')
+                    ->withErrors(['error' => "Невозможно удалить предмет: существует {$instancesCount} экземпляров этого предмета."]);
+            }
+
+            // Проверяем, используется ли предмет в настройках спавна
+            $spawnsCount = $item->spawns()->count();
+
+            if ($spawnsCount > 0) {
+                return redirect()->route('admin.items.index')
+                    ->withErrors(['error' => "Невозможно удалить предмет: используется в {$spawnsCount} настройках спавна."]);
+            }
+
+            $item->delete();
+
+            return redirect()->route('admin.items.index')
+                ->with('success', 'Предмет успешно удален!');
+        } catch (\Exception $e) {
+            Log::error('Item deletion failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'item_id' => $item->id,
+            ]);
+
+            return back()
+                ->withErrors(['error' => 'Произошла ошибка при удалении предмета: '.$e->getMessage()]);
+        }
     }
 }

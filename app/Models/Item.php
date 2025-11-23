@@ -56,6 +56,14 @@ class Item extends Model
     }
 
     /**
+     * Настройки спавна этого предмета в локациях.
+     */
+    public function spawns(): HasMany
+    {
+        return $this->hasMany(LocationItemSpawn::class);
+    }
+
+    /**
      * Проверить, является ли предмет оружием.
      */
     public function isWeapon(): bool

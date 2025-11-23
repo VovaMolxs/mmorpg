@@ -21,6 +21,11 @@ Schedule::command('items:clean-expired')
     ->everyFiveMinutes()
     ->appendOutputTo(storage_path('logs/scheduler.log'));
 
+// Спавн предметов в локациях каждые 5 минут
+Schedule::command('items:spawn-location')
+    ->everyFiveMinutes()
+    ->appendOutputTo(storage_path('logs/scheduler.log'));
+
 // Восстановление зарядов рун каждую минуту
 Schedule::command('items:recharge-runes')
     ->everyMinute()

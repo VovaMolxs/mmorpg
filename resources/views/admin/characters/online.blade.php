@@ -31,6 +31,12 @@
             >
                 Карта мира
             </a>
+            <a
+                href="{{ route('admin.item-spawns.index') }}"
+                class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap"
+            >
+                Спавн предметов
+            </a>
         </div>
     </div>
 
