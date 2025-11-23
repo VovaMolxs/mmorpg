@@ -2,7 +2,7 @@
     $currentRoute = request()->route()->getName();
 @endphp
 
-<div class="flex gap-2">
+<div class="flex flex-wrap gap-2">
     <a
         href="{{ route('admin.characters.online') }}"
         class="px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 whitespace-nowrap"
@@ -50,6 +50,18 @@
         class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.npc-spawns') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
     >
         Спавн NPC
+    </a>
+    <a
+        href="{{ route('admin.dialogs.index') }}"
+        class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.dialogs') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
+    >
+        Диалоги
+    </a>
+    <a
+        href="{{ route('admin.quests.index') }}"
+        class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.quests') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
+    >
+        Квесты
     </a>
     @isset($additionalButtons)
         @foreach($additionalButtons as $button)

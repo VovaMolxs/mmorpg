@@ -102,6 +102,19 @@ Route::middleware('auth')->group(function () {
             Route::post('keep-alive', [GameSessionController::class, 'keepAlive'])->name('keep-alive');
             Route::get('session-status', [GameSessionController::class, 'sessionStatus'])->name('session-status');
         });
+
+        // Dialog routes (API)
+        Route::prefix('dialogs')->name('dialogs.')->group(function () {
+            Route::post('start', [\App\Http\Controllers\Api\DialogController::class, 'start'])->name('start');
+            Route::post('answer', [\App\Http\Controllers\Api\DialogController::class, 'answer'])->name('answer');
+        });
+
+        // Quest routes (API)
+        Route::prefix('quests')->name('quests.')->group(function () {
+            Route::post('accept', [\App\Http\Controllers\Api\QuestController::class, 'accept'])->name('accept');
+            Route::post('complete', [\App\Http\Controllers\Api\QuestController::class, 'complete'])->name('complete');
+            Route::get('active', [\App\Http\Controllers\Api\QuestController::class, 'active'])->name('active');
+        });
     });
 });
 
@@ -140,4 +153,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // NPC spawns management
     Route::resource('npc-spawns', AdminNpcSpawnController::class)->except(['show']);
+
+    // Dialogs management
+    Route::resource('dialogs', \App\Http\Controllers\Admin\DialogController::class)->except(['show']);
+
+    // Quests management
+    Route::resource('quests', \App\Http\Controllers\Admin\QuestController::class)->except(['show']);
 });

@@ -146,4 +146,36 @@ class Npc extends Model
     {
         return $this->ai_behavior === 'aggressive';
     }
+
+    /**
+     * Диалоги NPC.
+     */
+    public function dialogs(): HasMany
+    {
+        return $this->hasMany(Dialog::class);
+    }
+
+    /**
+     * Начальные диалоги NPC.
+     */
+    public function initialDialogs(): HasMany
+    {
+        return $this->hasMany(Dialog::class)->where('is_initial', true);
+    }
+
+    /**
+     * Квесты, которые выдает этот NPC.
+     */
+    public function questsGiven(): HasMany
+    {
+        return $this->hasMany(Quest::class, 'quest_giver_npc_id');
+    }
+
+    /**
+     * Квесты, которые сдаются этому NPC.
+     */
+    public function questsTurnedIn(): HasMany
+    {
+        return $this->hasMany(Quest::class, 'turn_in_npc_id');
+    }
 }
