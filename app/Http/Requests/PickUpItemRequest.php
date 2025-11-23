@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class DropItemRequest extends FormRequest
+class PickUpItemRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -31,14 +31,6 @@ class DropItemRequest extends FormRequest
                 'nullable',
                 'integer',
                 'min:1',
-            ],
-            'position_x' => [
-                'nullable',
-                'integer',
-            ],
-            'position_y' => [
-                'nullable',
-                'integer',
             ],
         ];
     }

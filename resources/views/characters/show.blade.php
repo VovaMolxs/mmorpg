@@ -5,8 +5,32 @@
 @section('content')
 <div class="max-w-4xl mx-auto">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 class="text-2xl sm:text-3xl font-semibold break-words">{{ $character->name }}</h1>
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-semibold break-words">{{ $character->name }}</h1>
+            @if($session || ($presence && $presence->isOnline()))
+                <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                    В игре
+                </div>
+            @endif
+        </div>
         <div class="flex flex-wrap gap-2 sm:gap-4 w-full sm:w-auto">
+            @if($session || ($presence && $presence->isOnline()))
+                <a
+                    href="{{ route('game') }}"
+                    class="px-3 sm:px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 font-medium whitespace-nowrap text-sm sm:text-base"
+                >
+                    Вернуться в игру
+                </a>
+            @else
+                <button
+                    onclick="enterWorld({{ $character->id }})"
+                    class="px-3 sm:px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 font-medium whitespace-nowrap text-sm sm:text-base"
+                    id="enter-world-btn-{{ $character->id }}"
+                >
+                    Войти в игру
+                </button>
+            @endif
             <a
                 href="{{ route('characters.skills', $character) }}"
                 class="px-3 sm:px-4 py-2 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded hover:bg-black dark:hover:bg-white font-medium whitespace-nowrap text-sm sm:text-base"
@@ -27,6 +51,28 @@
             </a>
         </div>
     </div>
+
+    @if($session)
+        <div class="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 rounded-lg p-4 mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                    <p class="text-sm text-green-800 dark:text-green-200 font-medium mb-1">
+                        Персонаж находится в игре
+                    </p>
+                    <p class="text-xs text-green-700 dark:text-green-300">
+                        Вход: {{ $session->login_at->format('d.m.Y H:i') }} | 
+                        Последняя активность: {{ $session->last_activity_at->format('H:i:s') }}
+                    </p>
+                </div>
+                <a
+                    href="{{ route('game') }}"
+                    class="text-sm px-3 py-1 bg-green-600 dark:bg-green-700 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 whitespace-nowrap"
+                >
+                    Перейти в игру →
+                </a>
+            </div>
+        </div>
+    @endif
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
@@ -179,5 +225,52 @@
         @endif
     </div>
 </div>
+
+@push('scripts')
+<script>
+    async function enterWorld(characterId) {
+        const btn = document.getElementById(`enter-world-btn-${characterId}`);
+        const originalText = btn.textContent;
+        
+        btn.disabled = true;
+        btn.textContent = 'Вход...';
+        
+        try {
+            const response = await fetch('{{ route("api.game.enter-world") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    character_id: characterId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Сохраняем токен сессии
+                if (data.session && data.session.token) {
+                    localStorage.setItem('game_session_token', data.session.token);
+                }
+                
+                alert('Вы успешно вошли в игровой мир!');
+                // Можно перенаправить на игровую страницу или обновить интерфейс
+                window.location.href = '/game';
+            } else {
+                alert(data.error || 'Ошибка при входе в игру');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Произошла ошибка при входе в игру');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+</script>
+@endpush
 @endsection
 

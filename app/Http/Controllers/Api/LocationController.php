@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MoveLocationRequest;
 use App\Models\Character;
+use App\Models\ItemInstance;
 use App\Models\Location;
 use App\Models\LocationExit;
 use Illuminate\Http\JsonResponse;
@@ -37,9 +38,19 @@ class LocationController extends Controller
 
         $location->load('exits.toLocation');
 
+        $items = ItemInstance::where('location_type', 'ground')
+            ->where('location_id', $location->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->with('item')
+            ->get();
+
         return response()->json([
             'location' => $this->formatLocation($location),
             'exits' => $this->formatExits($location->exits, $character),
+            'items' => $this->formatItems($items),
         ]);
     }
 
@@ -98,11 +109,21 @@ class LocationController extends Controller
 
             $newLocation->load('exits.toLocation');
 
+            $items = ItemInstance::where('location_type', 'ground')
+                ->where('location_id', $newLocation->id)
+                ->where(function ($query) {
+                    $query->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now());
+                })
+                ->with('item')
+                ->get();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Вы успешно переместились',
                 'location' => $this->formatLocation($newLocation),
                 'exits' => $this->formatExits($newLocation->exits, $character),
+                'items' => $this->formatItems($items),
             ]);
         } catch (\Exception $e) {
             Log::error('Location move failed', [
@@ -212,6 +233,59 @@ class LocationController extends Controller
     }
 
     /**
+     * Получить список предметов в локации.
+     */
+    public function items(Request $request, Location $location): JsonResponse
+    {
+        $items = ItemInstance::where('location_type', 'ground')
+            ->where('location_id', $location->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->with('item')
+            ->get();
+
+        return response()->json([
+            'location' => $this->formatLocation($location),
+            'items' => $this->formatItems($items),
+            'count' => $items->count(),
+        ]);
+    }
+
+    /**
+     * Получить список онлайн игроков в локации.
+     */
+    public function players(Request $request, Location $location): JsonResponse
+    {
+        $onlinePlayers = $location->onlinePlayers()
+            ->with('character:id,name,level,location_id')
+            ->get();
+
+        $players = $onlinePlayers->map(function ($presence) {
+            $character = $presence->character;
+
+            return [
+                'id' => $character->id,
+                'name' => $character->name,
+                'level' => $character->level,
+                'status' => $presence->status,
+                'is_visible' => $presence->is_visible,
+                'last_action_at' => $presence->last_action_at?->toIso8601String(),
+            ];
+        })->values();
+
+        return response()->json([
+            'location' => [
+                'id' => $location->id,
+                'name' => $location->name,
+            ],
+            'players' => $players,
+            'count' => $players->count(),
+        ]);
+    }
+
+    /**
      * Получить активного персонажа пользователя.
      */
     private function getActiveCharacter(Request $request): ?Character
@@ -271,5 +345,36 @@ class LocationController extends Controller
                 ] : null,
             ];
         })->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные предметов для ответа.
+     */
+    private function formatItems($items): array
+    {
+        return $items->map(function ($itemInstance) {
+            $item = $itemInstance->item;
+
+            if (! $item) {
+                return null;
+            }
+
+            return [
+                'id' => $itemInstance->id,
+                'item_id' => $item->id,
+                'name' => $item->name,
+                'description' => $item->description,
+                'type' => $item->type,
+                'subtype' => $item->subtype,
+                'rarity' => $item->rarity,
+                'stackable' => $item->stackable,
+                'quantity' => $itemInstance->quantity,
+                'durability_current' => $itemInstance->durability_current,
+                'position_x' => $itemInstance->position_x,
+                'position_y' => $itemInstance->position_y,
+                'expires_at' => $itemInstance->expires_at?->toIso8601String(),
+                'expires_in' => $itemInstance->expires_at ? now()->diffInSeconds($itemInstance->expires_at) : null,
+            ];
+        })->filter()->values()->toArray();
     }
 }

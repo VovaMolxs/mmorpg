@@ -4,12 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AddItemToCharacterRequest;
+use App\Http\Requests\Admin\MoveCharacterRequest;
 use App\Http\Requests\Admin\RestoreCharacterRequest;
 use App\Http\Requests\Admin\UpdateCharacterSkillRequest;
 use App\Models\Character;
+use App\Models\CharacterPresence;
+use App\Models\CharacterSession;
 use App\Models\CharacterSkill;
 use App\Models\Item;
 use App\Models\ItemInstance;
+use App\Models\Location;
 use App\Models\Skill;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,15 +74,18 @@ class CharacterController extends Controller
             'characterSkills.skill',
             'inventoryItems.item',
             'equipment.itemInstance.item',
+            'location',
         ]);
 
         $allItems = Item::orderBy('type')->orderBy('name')->get();
         $allSkills = Skill::orderBy('category')->orderBy('name')->get();
+        $allLocations = Location::orderBy('name')->get();
 
         return view('admin.characters.show', [
             'character' => $character,
             'allItems' => $allItems,
             'allSkills' => $allSkills,
+            'allLocations' => $allLocations,
         ]);
     }
 
@@ -190,6 +197,85 @@ class CharacterController extends Controller
 
             return back()
                 ->withErrors(['error' => 'Произошла ошибка при обновлении навыка: '.$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Display online characters.
+     */
+    public function online(): View
+    {
+        // Получаем все активные сессии с персонажами
+        $sessions = CharacterSession::where('is_online', true)
+            ->whereNull('logout_at')
+            ->with([
+                'character.user',
+                'character.location',
+                'location',
+            ])
+            ->orderBy('last_activity_at', 'desc')
+            ->get();
+
+        // Получаем присутствие для всех персонажей в игре
+        $characterIds = $sessions->pluck('character_id');
+        $presences = CharacterPresence::whereIn('character_id', $characterIds)
+            ->where('status', 'online')
+            ->with('location')
+            ->get()
+            ->keyBy('character_id');
+
+        return view('admin.characters.online', [
+            'sessions' => $sessions,
+            'presences' => $presences,
+        ]);
+    }
+
+    /**
+     * Move character to a different location.
+     */
+    public function move(MoveCharacterRequest $request, Character $character): RedirectResponse
+    {
+        try {
+            DB::transaction(function () use ($request, $character) {
+                $location = Location::findOrFail($request->location_id);
+
+                // Обновляем локацию персонажа
+                $character->location_id = $location->id;
+                $character->save();
+
+                // Обновляем локацию в активной сессии, если есть
+                $session = CharacterSession::where('character_id', $character->id)
+                    ->where('is_online', true)
+                    ->whereNull('logout_at')
+                    ->first();
+
+                if ($session) {
+                    $session->location_id = $location->id;
+                    $session->save();
+                }
+
+                // Обновляем локацию в присутствии, если есть
+                $presence = CharacterPresence::where('character_id', $character->id)->first();
+                if ($presence) {
+                    $presence->location_id = $location->id;
+                    $presence->save();
+                }
+            });
+
+            $character->refresh();
+            $character->load('location');
+
+            return redirect()->route('admin.characters.show', $character)
+                ->with('success', "Персонаж успешно перемещен в локацию: {$character->location->name}");
+        } catch (\Exception $e) {
+            Log::error('Failed to move character', [
+                'error' => $e->getMessage(),
+                'character_id' => $character->id,
+                'location_id' => $request->location_id,
+            ]);
+
+            return back()
+                ->withErrors(['error' => 'Произошла ошибка при перемещении персонажа: '.$e->getMessage()]);
         }
     }
 

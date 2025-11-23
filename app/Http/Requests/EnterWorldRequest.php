@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Character;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class DropItemRequest extends FormRequest
+class EnterWorldRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,23 +24,13 @@ class DropItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'item_instance_id' => [
+            'character_id' => [
                 'required',
                 'integer',
-                'exists:item_instances,id',
-            ],
-            'quantity' => [
-                'nullable',
-                'integer',
-                'min:1',
-            ],
-            'position_x' => [
-                'nullable',
-                'integer',
-            ],
-            'position_y' => [
-                'nullable',
-                'integer',
+                Rule::exists('characters', 'id')->where(function ($query) {
+                    $query->where('user_id', $this->user()->id)
+                        ->where('is_active', true);
+                }),
             ],
         ];
     }
@@ -51,9 +43,16 @@ class DropItemRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'item_instance_id.required' => 'Необходимо указать экземпляр предмета.',
-            'item_instance_id.exists' => 'Указанный предмет не существует.',
-            'quantity.min' => 'Количество должно быть больше 0.',
+            'character_id.required' => 'Необходимо выбрать персонажа.',
+            'character_id.exists' => 'Выбранный персонаж не существует или недоступен.',
         ];
+    }
+
+    /**
+     * Get the validated character instance.
+     */
+    public function getCharacter(): Character
+    {
+        return Character::findOrFail($this->validated()['character_id']);
     }
 }

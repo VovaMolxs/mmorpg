@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Character extends Model
 {
@@ -116,6 +117,32 @@ class Character extends Model
     public function questItems(): HasMany
     {
         return $this->hasMany(ItemInstance::class, 'owner_id');
+    }
+
+    /**
+     * Сессии персонажа.
+     */
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(CharacterSession::class);
+    }
+
+    /**
+     * Активная сессия персонажа.
+     */
+    public function activeSession(): HasMany
+    {
+        return $this->hasMany(CharacterSession::class)
+            ->where('is_online', true)
+            ->whereNull('logout_at');
+    }
+
+    /**
+     * Присутствие персонажа в мире.
+     */
+    public function presence(): HasOne
+    {
+        return $this->hasOne(CharacterPresence::class);
     }
 
     /**

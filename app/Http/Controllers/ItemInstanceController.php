@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DropItemRequest;
 use App\Http\Requests\EquipItemRequest;
 use App\Http\Requests\MoveItemRequest;
+use App\Http\Requests\PickUpItemRequest;
 use App\Http\Requests\UseItemRequest;
 use App\Models\Character;
 use App\Models\CharacterEquipment;
@@ -29,7 +30,12 @@ class ItemInstanceController extends Controller
             }
         }
 
-        $itemInstance->load('item');
+        // Для предметов на земле загружаем информацию о локации
+        if ($itemInstance->location_type === 'ground') {
+            $itemInstance->load('item');
+        } else {
+            $itemInstance->load('item');
+        }
 
         return response()->json($itemInstance);
     }
@@ -193,6 +199,16 @@ class ItemInstanceController extends Controller
                     return response()->json(['error' => 'Предмет не находится в инвентаре персонажа.'], 400);
                 }
 
+                // Получаем текущую локацию персонажа
+                $location = $character->location;
+                if (! $location) {
+                    return response()->json(['error' => 'Персонаж не находится ни в одной локации.'], 400);
+                }
+
+                $locationId = $location->id;
+                $positionX = $request->position_x ?? 0;
+                $positionY = $request->position_y ?? 0;
+
                 // Если указано количество и предмет стакуемый, разделяем стак
                 if ($request->has('quantity') && $itemInstance->item->stackable) {
                     $quantity = $request->quantity;
@@ -201,10 +217,10 @@ class ItemInstanceController extends Controller
                     }
 
                     $droppedInstance = $itemInstance->splitStack($quantity);
-                    $droppedInstance->dropOnGround($request->position_x, $request->position_y);
+                    $droppedInstance->dropOnGround($locationId, $positionX, $positionY);
                 } else {
                     // Выбрасываем весь предмет
-                    $itemInstance->dropOnGround($request->position_x, $request->position_y);
+                    $itemInstance->dropOnGround($locationId, $positionX, $positionY);
                 }
 
                 return response()->json([
@@ -219,6 +235,73 @@ class ItemInstanceController extends Controller
             ]);
 
             return response()->json(['error' => 'Произошла ошибка при выбрасывании предмета.'], 500);
+        }
+    }
+
+    /**
+     * Поднять предмет с земли.
+     */
+    public function pickUp(PickUpItemRequest $request, Character $character): JsonResponse
+    {
+        if ($character->user_id !== auth()->id()) {
+            return response()->json(['error' => 'Доступ запрещен.'], 403);
+        }
+
+        try {
+            return DB::transaction(function () use ($request, $character) {
+                $itemInstance = ItemInstance::findOrFail($request->item_instance_id);
+
+                // Проверка, что предмет на земле
+                if ($itemInstance->location_type !== 'ground') {
+                    return response()->json(['error' => 'Предмет не находится на земле.'], 400);
+                }
+
+                // Проверка, что предмет не истек
+                if ($itemInstance->isExpired()) {
+                    return response()->json(['error' => 'Предмет уже исчез.'], 400);
+                }
+
+                // Проверка, что предмет находится в текущей локации персонажа
+                $characterLocation = $character->location;
+                if (! $characterLocation || $itemInstance->location_id !== $characterLocation->id) {
+                    return response()->json(['error' => 'Предмет находится в другой локации.'], 400);
+                }
+
+                $item = $itemInstance->item;
+
+                // Если указано количество и предмет стакуемый, разделяем стак
+                if ($request->has('quantity') && $item->stackable && $itemInstance->quantity > 1) {
+                    $quantity = $request->quantity;
+                    if ($quantity > $itemInstance->quantity) {
+                        return response()->json(['error' => 'Количество не может быть больше количества в стаке.'], 400);
+                    }
+
+                    // Создаем новый экземпляр для поднятия
+                    $pickedUpInstance = $itemInstance->splitStack($quantity);
+                    $pickedUpInstance->moveToInventory($character->id);
+
+                    return response()->json([
+                        'message' => "Поднято {$quantity} шт. предмета.",
+                        'item_instance' => $pickedUpInstance->load('item'),
+                    ]);
+                } else {
+                    // Поднимаем весь предмет
+                    $itemInstance->moveToInventory($character->id);
+
+                    return response()->json([
+                        'message' => 'Предмет успешно поднят.',
+                        'item_instance' => $itemInstance->load('item'),
+                    ]);
+                }
+            });
+        } catch (\Exception $e) {
+            Log::error('Item pick up failed', [
+                'error' => $e->getMessage(),
+                'character_id' => $character->id,
+                'item_instance_id' => $request->item_instance_id,
+            ]);
+
+            return response()->json(['error' => 'Произошла ошибка при поднятии предмета.'], 500);
         }
     }
 
@@ -247,7 +330,10 @@ class ItemInstanceController extends Controller
                 if ($targetLocationType === 'inventory') {
                     $itemInstance->moveToInventory($targetLocationId, $request->position_x, $request->position_y);
                 } elseif ($targetLocationType === 'ground') {
-                    $itemInstance->dropOnGround($request->position_x ?? 0, $request->position_y ?? 0);
+                    // Получаем текущую локацию персонажа для выброса на землю
+                    $location = $character->location;
+                    $locationId = $location?->id;
+                    $itemInstance->dropOnGround($locationId, $request->position_x ?? 0, $request->position_y ?? 0);
                 } else {
                     // Для других типов расположения
                     $itemInstance->location_type = $targetLocationType;

@@ -98,11 +98,68 @@
                         <span class="text-gray-500">Нет</span>
                     @endif
                 </p>
-                @if($character->location_id)
-                    <p><span class="font-medium">Локация ID:</span> {{ $character->location_id }}</p>
+                @if($character->location)
+                    <p><span class="font-medium">Локация:</span> {{ $character->location->name }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ $character->location->type }}
+                        @if($character->location->is_safe_zone)
+                            <span class="text-green-600 dark:text-green-400">(Безопасная зона)</span>
+                        @endif
+                    </p>
+                    @if($character->location->coordinate_x !== null && $character->location->coordinate_y !== null)
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Координаты: ({{ $character->location->coordinate_x }}, {{ $character->location->coordinate_y }})
+                        </p>
+                    @endif
+                @else
+                    <p><span class="font-medium">Локация:</span> <span class="text-gray-500">Не указана</span></p>
                 @endif
             </div>
         </div>
+    </div>
+
+    <!-- Перемещение персонажа -->
+    <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Перемещение персонажа</h2>
+        <form method="POST" action="{{ route('admin.characters.move', $character) }}" class="space-y-4">
+            @csrf
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                    <label for="location_id" class="block text-sm font-medium mb-1">Локация *</label>
+                    <select
+                        id="location_id"
+                        name="location_id"
+                        required
+                        class="w-full px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded bg-white dark:bg-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f53003] dark:focus:ring-[#FF4433]"
+                    >
+                        <option value="">Выберите локацию</option>
+                        @foreach($allLocations as $location)
+                            <option value="{{ $location->id }}" {{ $character->location_id === $location->id ? 'selected' : '' }}>
+                                {{ $location->name }}
+                                ({{ $location->type }})
+                                @if($location->is_safe_zone)
+                                    - Безопасная зона
+                                @endif
+                                @if($location->coordinate_x !== null && $location->coordinate_y !== null)
+                                    - ({{ $location->coordinate_x }}, {{ $location->coordinate_y }})
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('location_id')
+                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex items-end">
+                    <button
+                        type="submit"
+                        class="w-full px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600"
+                    >
+                        Переместить
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
 
     @if($character->description)

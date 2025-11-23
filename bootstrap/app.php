@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'throttle.registrations' => \App\Http\Middleware\ThrottleRegistrations::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'game.session' => \App\Http\Middleware\CheckGameSessionActivity::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

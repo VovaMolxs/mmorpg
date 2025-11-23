@@ -56,6 +56,37 @@ class Location extends Model
     }
 
     /**
+     * Присутствие персонажей в этой локации.
+     */
+    public function presence(): HasMany
+    {
+        return $this->hasMany(CharacterPresence::class);
+    }
+
+    /**
+     * Онлайн персонажи в этой локации.
+     */
+    public function onlinePlayers(): HasMany
+    {
+        return $this->hasMany(CharacterPresence::class)
+            ->where('status', 'online')
+            ->where('is_visible', true);
+    }
+
+    /**
+     * Предметы на земле в этой локации.
+     */
+    public function itemsOnGround(): HasMany
+    {
+        return $this->hasMany(ItemInstance::class, 'location_id')
+            ->where('location_type', 'ground')
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            });
+    }
+
+    /**
      * Проверить, доступна ли локация для персонажа по уровню.
      */
     public function isAccessibleByLevel(int $level): bool

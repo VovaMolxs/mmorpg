@@ -124,6 +124,13 @@
                             @endif
 
                             <button
+                                onclick="dropItem({{ $itemInstance->id }}, {{ $itemInstance->quantity }}, {{ $item->stackable ? 'true' : 'false' }})"
+                                class="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 flex-1"
+                            >
+                                Выбросить
+                            </button>
+
+                            <button
                                 onclick="showItemDetails({{ $itemInstance->id }})"
                                 class="text-xs px-2 py-1 border border-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800 flex-1"
                             >
@@ -147,6 +154,42 @@
             <button onclick="closeItemModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">✕</button>
         </div>
         <div id="itemModalContent" class="space-y-2"></div>
+    </div>
+</div>
+
+<!-- Модальное окно для выброса предмета -->
+<div id="dropItemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-[#161615] rounded-lg p-6 max-w-md w-full">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="dropItemModalTitle" class="text-xl font-semibold">Выбросить предмет</h3>
+            <button onclick="closeDropItemModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">✕</button>
+        </div>
+        <div id="dropItemModalContent" class="space-y-4">
+            <p id="dropItemMessage" class="text-sm text-gray-600 dark:text-gray-400"></p>
+            <div id="dropItemQuantityInput" class="hidden">
+                <label for="dropQuantity" class="block text-sm font-medium mb-2">Количество:</label>
+                <input
+                    type="number"
+                    id="dropQuantity"
+                    min="1"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1C1C1A] text-gray-900 dark:text-gray-100"
+                />
+            </div>
+            <div class="flex gap-2 justify-end">
+                <button
+                    onclick="closeDropItemModal()"
+                    class="px-4 py-2 border border-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                    Отмена
+                </button>
+                <button
+                    onclick="confirmDropItem()"
+                    class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                    Выбросить
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -315,6 +358,100 @@ function closeItemModal() {
 document.getElementById('itemModal').addEventListener('click', function(e) {
     if (e.target === this) {
         closeItemModal();
+    }
+});
+
+// Переменные для выброса предмета
+let currentDropItemId = null;
+let currentDropMaxQuantity = 1;
+let currentDropIsStackable = false;
+
+// Показать модальное окно для выброса предмета
+function dropItem(itemInstanceId, maxQuantity, isStackable) {
+    currentDropItemId = itemInstanceId;
+    currentDropMaxQuantity = maxQuantity;
+    currentDropIsStackable = isStackable;
+
+    const modal = document.getElementById('dropItemModal');
+    const message = document.getElementById('dropItemMessage');
+    const quantityInput = document.getElementById('dropItemQuantityInput');
+    const quantityField = document.getElementById('dropQuantity');
+
+    if (isStackable && maxQuantity > 1) {
+        message.textContent = `Вы хотите выбросить предмет. У вас ${maxQuantity} шт.`;
+        quantityInput.classList.remove('hidden');
+        quantityField.value = 1;
+        quantityField.max = maxQuantity - 1;
+    } else {
+        message.textContent = 'Вы уверены, что хотите выбросить этот предмет на землю?';
+        quantityInput.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+}
+
+// Закрыть модальное окно выброса
+function closeDropItemModal() {
+    document.getElementById('dropItemModal').classList.add('hidden');
+    currentDropItemId = null;
+    currentDropMaxQuantity = 1;
+    currentDropIsStackable = false;
+}
+
+// Подтвердить выброс предмета
+async function confirmDropItem() {
+    if (!currentDropItemId) {
+        return;
+    }
+
+    const quantityInput = document.getElementById('dropQuantity');
+    let quantity = null;
+
+    if (currentDropIsStackable && currentDropMaxQuantity > 1) {
+        quantity = parseInt(quantityInput.value);
+        if (isNaN(quantity) || quantity < 1 || quantity >= currentDropMaxQuantity) {
+            alert('Укажите корректное количество (от 1 до ' + (currentDropMaxQuantity - 1) + ')');
+            return;
+        }
+    }
+
+    try {
+        const body = {
+            item_instance_id: currentDropItemId
+        };
+
+        if (quantity !== null) {
+            body.quantity = quantity;
+        }
+
+        const response = await fetch(`/api/characters/{{ $character->id }}/items/drop`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(data.message || 'Предмет успешно выброшен на землю!');
+            closeDropItemModal();
+            location.reload();
+        } else {
+            alert('Ошибка: ' + (data.error || 'Не удалось выбросить предмет'));
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при выбрасывании предмета');
+    }
+}
+
+// Закрытие модального окна выброса по клику вне его
+document.getElementById('dropItemModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDropItemModal();
     }
 });
 </script>

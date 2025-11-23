@@ -3,11 +3,14 @@
 use App\Http\Controllers\Admin\CharacterController as AdminCharacterController;
 use App\Http\Controllers\Admin\ItemController as AdminItemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\WorldMapController;
+use App\Http\Controllers\Api\GameSessionController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GameController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\ItemInstanceController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -53,6 +56,7 @@ Route::middleware('auth')->group(function () {
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/game', [GameController::class, 'index'])->name('game');
 
     // Character routes
     Route::resource('characters', CharacterController::class)->only(['index', 'create', 'store', 'show']);
@@ -75,6 +79,7 @@ Route::middleware('auth')->group(function () {
             Route::post('items/equip', [ItemInstanceController::class, 'equip'])->name('characters.items.equip');
             Route::post('items/{itemInstance}/unequip', [ItemInstanceController::class, 'unequip'])->name('characters.items.unequip');
             Route::post('items/drop', [ItemInstanceController::class, 'drop'])->name('characters.items.drop');
+            Route::post('items/pick-up', [ItemInstanceController::class, 'pickUp'])->name('characters.items.pick-up');
             Route::post('items/move', [ItemInstanceController::class, 'move'])->name('characters.items.move');
             Route::post('items/use', [ItemInstanceController::class, 'use'])->name('characters.items.use');
         });
@@ -83,7 +88,17 @@ Route::middleware('auth')->group(function () {
         Route::get('location/current', [LocationController::class, 'current'])->name('location.current');
         Route::post('location/move', [LocationController::class, 'move'])->name('location.move');
         Route::get('location/{location}/exits', [LocationController::class, 'exits'])->name('location.exits');
+        Route::get('location/{location}/items', [LocationController::class, 'items'])->name('location.items');
+        Route::get('location/{location}/players', [LocationController::class, 'players'])->name('location.players');
         Route::get('world/map', [LocationController::class, 'map'])->name('world.map');
+
+        // Game session routes (API)
+        Route::prefix('game')->name('game.')->group(function () {
+            Route::post('enter-world', [GameSessionController::class, 'enterWorld'])->name('enter-world');
+            Route::post('leave-world', [GameSessionController::class, 'leaveWorld'])->name('leave-world');
+            Route::post('keep-alive', [GameSessionController::class, 'keepAlive'])->name('keep-alive');
+            Route::get('session-status', [GameSessionController::class, 'sessionStatus'])->name('session-status');
+        });
     });
 });
 
@@ -96,11 +111,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('users/{user}/max-characters', [AdminUserController::class, 'updateMaxCharacters'])->name('users.update-max-characters');
 
     // Characters management
+    Route::get('characters/online', [AdminCharacterController::class, 'online'])->name('characters.online');
     Route::resource('characters', AdminCharacterController::class)->only(['index', 'show']);
     Route::post('characters/{character}/add-item', [AdminCharacterController::class, 'addItem'])->name('characters.add-item');
     Route::post('characters/{character}/update-skill', [AdminCharacterController::class, 'updateSkill'])->name('characters.update-skill');
     Route::post('characters/{character}/restore', [AdminCharacterController::class, 'restore'])->name('characters.restore');
+    Route::post('characters/{character}/move', [AdminCharacterController::class, 'move'])->name('characters.move');
 
     // Items management
     Route::resource('items', AdminItemController::class)->only(['index', 'create', 'store']);
+
+    // World map management
+    Route::get('world-map', [WorldMapController::class, 'index'])->name('world-map.index');
+    Route::post('world-map', [WorldMapController::class, 'store'])->name('world-map.store');
+    Route::get('world-map/{location}', [WorldMapController::class, 'show'])->name('world-map.show');
+    Route::put('world-map/{location}', [WorldMapController::class, 'update'])->name('world-map.update');
+    Route::post('world-map/{location}/exits', [WorldMapController::class, 'updateExits'])->name('world-map.update-exits');
+    Route::delete('world-map/{location}', [WorldMapController::class, 'destroy'])->name('world-map.destroy');
 });

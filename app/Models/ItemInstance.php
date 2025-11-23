@@ -121,10 +121,10 @@ class ItemInstance extends Model
     /**
      * Установить предмет на землю с временем жизни 30 минут.
      */
-    public function dropOnGround(int $x, int $y): void
+    public function dropOnGround(?int $locationId = null, ?int $x = null, ?int $y = null): void
     {
         $this->location_type = 'ground';
-        $this->location_id = null;
+        $this->location_id = $locationId;
         $this->position_x = $x;
         $this->position_y = $y;
         $this->expires_at = Carbon::now()->addMinutes(30);

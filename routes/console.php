@@ -25,3 +25,13 @@ Schedule::command('items:clean-expired')
 Schedule::command('items:recharge-runes')
     ->everyMinute()
     ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+// Автоматический выход неактивных персонажей каждую минуту
+Schedule::command('sessions:auto-logout')
+    ->everyMinute()
+    ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+// Очистка старых сессий ежедневно в 3:00
+Schedule::command('sessions:cleanup')
+    ->dailyAt('03:00')
+    ->appendOutputTo(storage_path('logs/scheduler.log'));

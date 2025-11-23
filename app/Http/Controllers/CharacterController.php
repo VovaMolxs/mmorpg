@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CreateCharacterRequest;
 use App\Models\Character;
+use App\Models\CharacterPresence;
+use App\Models\CharacterSession;
 use App\Models\Skill;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -18,12 +20,32 @@ class CharacterController extends Controller
     public function index(): View
     {
         $characters = auth()->user()->characters()
+            ->with('location')
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Загружаем информацию о сессиях и присутствии для всех персонажей
+        $characterIds = $characters->pluck('id');
+        $sessions = collect();
+        $presences = collect();
+
+        if ($characterIds->isNotEmpty()) {
+            $sessions = CharacterSession::whereIn('character_id', $characterIds)
+                ->where('is_online', true)
+                ->whereNull('logout_at')
+                ->get()
+                ->keyBy('character_id');
+
+            $presences = CharacterPresence::whereIn('character_id', $characterIds)
+                ->get()
+                ->keyBy('character_id');
+        }
 
         return view('characters.index', [
             'characters' => $characters,
             'maxCharacters' => auth()->user()->max_characters,
+            'sessions' => $sessions,
+            'presences' => $presences,
         ]);
     }
 
@@ -108,10 +130,21 @@ class CharacterController extends Controller
             abort(403, 'Доступ запрещен.');
         }
 
-        $character->load('characterSkills.skill', 'equipment.itemInstance.item');
+        $character->load('characterSkills.skill', 'equipment.itemInstance.item', 'location');
+
+        // Проверяем наличие активной сессии
+        $session = CharacterSession::where('character_id', $character->id)
+            ->where('is_online', true)
+            ->whereNull('logout_at')
+            ->first();
+
+        // Проверяем присутствие в мире
+        $presence = CharacterPresence::where('character_id', $character->id)->first();
 
         return view('characters.show', [
             'character' => $character,
+            'session' => $session,
+            'presence' => $presence,
         ]);
     }
 
