@@ -120,6 +120,34 @@ class Location extends Model
     }
 
     /**
+     * Трупы в этой локации.
+     */
+    public function corpses(): HasMany
+    {
+        return $this->hasMany(CorpseContainer::class)
+            ->where('expires_at', '>', now())
+            ->where('is_looted', false);
+    }
+
+    /**
+     * Призраки в этой локации.
+     */
+    public function ghosts(): HasMany
+    {
+        return $this->hasMany(GhostState::class)
+            ->where('is_visible', true);
+    }
+
+    /**
+     * Камни воскрешения в этой локации.
+     */
+    public function resurrectionStones(): HasMany
+    {
+        return $this->hasMany(ResurrectionStone::class)
+            ->where('is_active', true);
+    }
+
+    /**
      * Проверить, доступна ли локация для персонажа по уровню.
      */
     public function isAccessibleByLevel(int $level): bool

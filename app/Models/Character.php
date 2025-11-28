@@ -886,6 +886,46 @@ class Character extends Model
     }
 
     /**
+     * Смерти персонажа.
+     */
+    public function deaths(): HasMany
+    {
+        return $this->hasMany(CharacterDeath::class);
+    }
+
+    /**
+     * Последняя смерть персонажа.
+     */
+    public function lastDeath(): HasOne
+    {
+        return $this->hasOne(CharacterDeath::class)->latestOfMany('died_at');
+    }
+
+    /**
+     * Трупы персонажа.
+     */
+    public function corpses(): HasMany
+    {
+        return $this->hasMany(CorpseContainer::class);
+    }
+
+    /**
+     * Состояние призрака персонажа.
+     */
+    public function ghostState(): HasOne
+    {
+        return $this->hasOne(GhostState::class);
+    }
+
+    /**
+     * Проверить, является ли персонаж призраком.
+     */
+    public function isGhost(): bool
+    {
+        return $this->ghostState()->exists();
+    }
+
+    /**
      * Получить ID предмета золота (золотая монета).
      */
     private function getGoldItemId(): int

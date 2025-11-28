@@ -90,6 +90,14 @@
                 </div>
             </div>
 
+            <!-- Камни воскрешения в локации -->
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Камни воскрешения</h2>
+                <div id="resurrection-stones-content">
+                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                </div>
+            </div>
+
             <!-- NPC в локации -->
             <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
                 <h2 class="text-xl font-semibold mb-4">NPC в локации</h2>
@@ -105,12 +113,51 @@
                     <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
                 </div>
             </div>
+
+            <!-- Трупы в локации -->
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Трупы в локации</h2>
+                <div id="corpses-content">
+                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                </div>
+            </div>
+
+            <!-- Игроки и призраки в локации -->
+            <div class="bg-white dark:bg-[#161615] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">Игроки и призраки</h2>
+                <div id="players-content">
+                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                </div>
+                <div id="ghosts-content" class="mt-4">
+                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Модальное окно для взаимодействия с NPC -->
 @include('game.npc-interaction')
+
+<!-- Модальное окно для осмотра предметов в трупе -->
+<div id="corpseItemsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeCorpseItemsModal()">
+    <div class="bg-white dark:bg-[#161615] rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="corpseItemsModalTitle" class="text-xl font-semibold">Предметы в трупе</h3>
+            <button
+                onclick="closeCorpseItemsModal()"
+                class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="corpseItemsModalContent" class="space-y-3">
+            <!-- Контент будет загружен динамически -->
+        </div>
+    </div>
+</div>
 
 <!-- Модальное окно для осмотра предмета на земле -->
 <div id="groundItemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -275,10 +322,22 @@
             const data = await response.json();
 
             if (response.ok) {
+                // Устанавливаем уровень персонажа
+                window.currentCharacterLevel = {{ $character->level }};
+                
+                // Проверяем, является ли текущий персонаж призраком
+                const currentCharacterId = {{ $character->id }};
+                const isGhost = (data.ghosts || []).some(ghost => ghost.character_id === currentCharacterId);
+                window.currentCharacterIsGhost = isGhost;
+                
                 renderLocation(data.location);
                 renderExits(data.exits || []);
                 renderItems(data.items || []);
+                renderResurrectionStones(data.resurrection_stones || []);
                 renderNpcs(data.npcs || []);
+                renderCorpses(data.corpses || []);
+                renderPlayers(data.players || []);
+                renderGhosts(data.ghosts || []);
             } else {
                 document.getElementById('location-content').innerHTML = 
                     '<p class="text-red-600 dark:text-red-400">Ошибка загрузки локации: ' + (data.error || 'Неизвестная ошибка') + '</p>';
@@ -1951,6 +2010,579 @@
         document.getElementById('items-content').innerHTML = itemsHtml;
     }
 
+    // Функция отображения трупов
+    function renderCorpses(corpses) {
+        if (!corpses || corpses.length === 0) {
+            document.getElementById('corpses-content').innerHTML = 
+                '<p class="text-gray-600 dark:text-gray-400">В локации нет трупов</p>';
+            return;
+        }
+
+        const corpsesHtml = corpses.map(corpse => {
+            const corpseTypeColors = {
+                'innocent': 'text-blue-600 dark:text-blue-400',
+                'criminal': 'text-red-600 dark:text-red-400',
+                'monster': 'text-purple-600 dark:text-purple-400',
+                'npc': 'text-gray-600 dark:text-gray-400',
+            };
+
+            const corpseTypeColor = corpseTypeColors[corpse.corpse_type] || corpseTypeColors.npc;
+            const corpseTypeNames = {
+                'innocent': 'Мирный',
+                'criminal': 'Преступник',
+                'monster': 'Монстр',
+                'npc': 'NPC',
+            };
+
+            const corpseTypeName = corpseTypeNames[corpse.corpse_type] || 'Неизвестно';
+            const belongsToMeBadge = corpse.belongs_to_me 
+                ? '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Ваш труп</span>'
+                : '';
+            const lootedBadge = corpse.is_looted 
+                ? '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">Разграблен</span>'
+                : '';
+
+            // Проверяем, является ли текущий персонаж призраком
+            const isGhost = window.currentCharacterIsGhost || false;
+            
+            const buttonsHtml = `
+                <div class="flex gap-2 mt-3">
+                    <button
+                        onclick="showCorpseItems(${corpse.id})"
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                    >
+                        Осмотреть
+                    </button>
+                    ${!corpse.is_looted && !isGhost ? `
+                        <button
+                            onclick="lootAllFromCorpse(${corpse.id})"
+                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium"
+                        >
+                            Забрать все
+                        </button>
+                    ` : ''}
+                    ${isGhost ? `
+                        <span class="flex-1 px-4 py-2 bg-gray-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                            Призраки не могут забирать предметы
+                        </span>
+                    ` : ''}
+                </div>
+            `;
+
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium ${corpseTypeColor}">Труп ${escapeHtml(corpse.character_name)}</h3>
+                                ${belongsToMeBadge}
+                                ${lootedBadge}
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Тип: ${corpseTypeName} | Предметов: ${corpse.total_items} | Исчезнет через: ${corpse.remaining_minutes} мин.
+                            </p>
+                            ${buttonsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('corpses-content').innerHTML = corpsesHtml;
+    }
+
+    // Функция отображения обычных игроков
+    function renderPlayers(players) {
+        if (!players || players.length === 0) {
+            document.getElementById('players-content').innerHTML = 
+                '<p class="text-gray-600 dark:text-gray-400">В локации нет других игроков</p>';
+            return;
+        }
+
+        const playersHtml = players.map(player => {
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium">${escapeHtml(player.name)}</h3>
+                                <span class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                                    Уровень ${player.level}
+                                </span>
+                                <span class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                    Онлайн
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Статус: ${player.status || 'активен'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('players-content').innerHTML = playersHtml;
+    }
+
+    // Функция отображения призраков
+    function renderGhosts(ghosts) {
+        if (!ghosts || ghosts.length === 0) {
+            document.getElementById('ghosts-content').innerHTML = 
+                '<p class="text-gray-600 dark:text-gray-400">В локации нет других игроков или призраков</p>';
+            return;
+        }
+
+        const ghostsHtml = ghosts.map(ghost => {
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 opacity-75">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-purple-600 dark:text-purple-400">👻 Призрак ${escapeHtml(ghost.character_name)}</h3>
+                                <span class="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+                                    Уровень ${ghost.level}
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Полупрозрачная фигура бродит по локации...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('ghosts-content').innerHTML = ghostsHtml;
+    }
+
+    // Функция отображения камней воскрешения
+    function renderResurrectionStones(stones) {
+        if (!stones || stones.length === 0) {
+            document.getElementById('resurrection-stones-content').innerHTML = 
+                '<p class="text-gray-600 dark:text-gray-400">В локации нет камней воскрешения</p>';
+            return;
+        }
+
+        const isGhost = window.currentCharacterIsGhost || false;
+        const currentLevel = window.currentCharacterLevel || 1;
+
+        const stonesHtml = stones.map(stone => {
+            // Определяем иконку и цвет в зависимости от визуального эффекта
+            const effectIcons = {
+                'glow': '✨',
+                'particles': '🌟',
+                'aura': '💫',
+            };
+            const effectIcon = effectIcons[stone.visual_effect] || '💎';
+
+            // Статус камня
+            let statusBadge = '';
+            if (!stone.is_active) {
+                statusBadge = '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">Неактивен</span>';
+            } else if (!stone.is_available && stone.remaining_cooldown_minutes > 0) {
+                statusBadge = `<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Перезарядка: ${stone.remaining_cooldown_minutes} мин</span>`;
+            } else {
+                statusBadge = '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Доступен</span>';
+            }
+
+            // Проверка возможности использования
+            const canUse = isGhost && stone.is_active && stone.is_available && stone.can_use && currentLevel >= stone.level_required;
+            const levelRequirementMet = currentLevel >= stone.level_required;
+
+            // Кнопка взаимодействия
+            let buttonHtml = '';
+            if (isGhost) {
+                if (canUse) {
+                    buttonHtml = `
+                        <button
+                            onclick="interactWithResurrectionStone(${stone.id}, '${escapeHtml(stone.name)}')"
+                            class="mt-3 w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm font-medium"
+                        >
+                            ${effectIcon} Взаимодействовать с камнем
+                        </button>
+                    `;
+                } else if (!stone.is_active) {
+                    buttonHtml = `
+                        <div class="mt-3 px-4 py-2 bg-gray-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                            Камень неактивен
+                        </div>
+                    `;
+                } else if (!stone.is_available && stone.remaining_cooldown_minutes > 0) {
+                    buttonHtml = `
+                        <div class="mt-3 px-4 py-2 bg-yellow-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                            Камень на перезарядке (${stone.remaining_cooldown_minutes} мин)
+                        </div>
+                    `;
+                } else if (!levelRequirementMet) {
+                    buttonHtml = `
+                        <div class="mt-3 px-4 py-2 bg-gray-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                            Требуется уровень ${stone.level_required}
+                        </div>
+                    `;
+                } else {
+                    buttonHtml = `
+                        <div class="mt-3 px-4 py-2 bg-gray-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                            Камень недоступен
+                        </div>
+                    `;
+                }
+            } else {
+                buttonHtml = `
+                    <div class="mt-3 px-4 py-2 bg-gray-400 text-white rounded text-sm font-medium text-center cursor-not-allowed">
+                        Только призраки могут использовать камни воскрешения
+                    </div>
+                `;
+            }
+
+            // Информация о перезарядке
+            const cooldownInfo = stone.cooldown_minutes > 0 
+                ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Перезарядка: ${stone.cooldown_minutes} минут</p>`
+                : '<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Без перезарядки</p>';
+
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 ${isGhost && canUse ? 'border-purple-400 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20' : ''}">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl">${effectIcon}</span>
+                                <h3 class="font-medium text-lg">${escapeHtml(stone.name)}</h3>
+                                ${statusBadge}
+                            </div>
+                            ${stone.description ? `<p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${escapeHtml(stone.description)}</p>` : ''}
+                            <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                <p><span class="font-medium">Требуемый уровень:</span> ${stone.level_required}</p>
+                                ${cooldownInfo}
+                            </div>
+                            ${buttonHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('resurrection-stones-content').innerHTML = stonesHtml;
+    }
+
+    // Функция взаимодействия с камнем воскрешения
+    async function interactWithResurrectionStone(stoneId, stoneName) {
+        if (!confirm(`Вы уверены, что хотите использовать камень "${stoneName}" для само-воскрешения?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/ghost/resurrection-stones/${stoneId}/interact`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(data.message || 'Вы были успешно воскрешены!');
+                // Обновляем страницу для отображения изменений
+                window.location.reload();
+            } else {
+                alert(data.error || 'Произошла ошибка при воскрешении');
+            }
+        } catch (error) {
+            console.error('Error interacting with resurrection stone:', error);
+            alert('Произошла ошибка при взаимодействии с камнем воскрешения');
+        }
+    }
+
+    // Функция показа предметов в трупе
+    async function showCorpseItems(corpseId) {
+        try {
+            const response = await fetch(`/api/corpse/${corpseId}/items`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                const inventoryItems = data.items.inventory || [];
+                const equipmentItems = data.items.equipment || [];
+                const allItems = [...inventoryItems, ...equipmentItems];
+                
+                // Проверяем, является ли текущий персонаж призраком
+                const isGhost = window.currentCharacterIsGhost || false;
+                
+                // Устанавливаем заголовок модального окна
+                document.getElementById('corpseItemsModalTitle').textContent = 
+                    `Предметы в трупе ${escapeHtml(data.corpse.character_name)}`;
+                
+                let itemsHtml = '';
+                
+                if (allItems.length === 0) {
+                    itemsHtml = '<p class="text-gray-600 dark:text-gray-400 text-center py-4">В трупе нет предметов</p>';
+                } else {
+                    // Информация о трупе
+                    const corpseInfoHtml = `
+                        <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 mb-4">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-gray-600 dark:text-gray-400">Тип трупа:</span>
+                                <span class="font-medium ${data.corpse.corpse_type === 'innocent' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}">
+                                    ${data.corpse.corpse_type === 'innocent' ? 'Мирный' : data.corpse.corpse_type === 'criminal' ? 'Преступник' : data.corpse.corpse_type}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm mt-2">
+                                <span class="text-gray-600 dark:text-gray-400">Исчезнет через:</span>
+                                <span class="font-medium">${data.corpse.remaining_minutes} минут</span>
+                            </div>
+                            ${data.corpse.belongs_to_me ? `
+                                <div class="mt-2 text-xs text-green-600 dark:text-green-400">
+                                    ✓ Это ваш труп
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    
+                    // Предметы из инвентаря
+                    let inventorySectionHtml = '';
+                    if (inventoryItems.length > 0) {
+                        inventorySectionHtml = `
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2 text-gray-700 dark:text-gray-300">Инвентарь (${inventoryItems.length})</h4>
+                                ${inventoryItems.map(item => {
+                                    const rarityColors = {
+                                        'common': 'text-gray-600 dark:text-gray-400',
+                                        'uncommon': 'text-green-600 dark:text-green-400',
+                                        'rare': 'text-blue-600 dark:text-blue-400',
+                                        'epic': 'text-purple-600 dark:text-purple-400',
+                                        'legendary': 'text-orange-600 dark:text-orange-400',
+                                    };
+                                    const rarityColor = rarityColors[item.item_data.rarity] || rarityColors.common;
+                                    
+                                    return `
+                                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-2">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1">
+                                                    <h4 class="font-medium ${rarityColor}">${escapeHtml(item.item_data.name)}</h4>
+                                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                        Количество: ${item.quantity} | Тип: ${escapeHtml(item.item_data.type)}${item.item_data.subtype ? ' / ' + escapeHtml(item.item_data.subtype) : ''}
+                                                    </p>
+                                                    ${item.durability_current !== null ? `
+                                                        <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                                            Прочность: ${item.durability_current}
+                                                        </p>
+                                                    ` : ''}
+                                                </div>
+                                                ${!isGhost && !data.corpse.is_looted ? `
+                                                    <button
+                                                        onclick="lootItemFromCorpse(${corpseId}, ${item.item_instance_id})"
+                                                        class="ml-3 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm whitespace-nowrap"
+                                                    >
+                                                        Забрать
+                                                    </button>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    // Предметы из экипировки
+                    let equipmentSectionHtml = '';
+                    if (equipmentItems.length > 0) {
+                        equipmentSectionHtml = `
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2 text-gray-700 dark:text-gray-300">Экипировка (${equipmentItems.length})</h4>
+                                ${equipmentItems.map(item => {
+                                    const rarityColors = {
+                                        'common': 'text-gray-600 dark:text-gray-400',
+                                        'uncommon': 'text-green-600 dark:text-green-400',
+                                        'rare': 'text-blue-600 dark:text-blue-400',
+                                        'epic': 'text-purple-600 dark:text-purple-400',
+                                        'legendary': 'text-orange-600 dark:text-orange-400',
+                                    };
+                                    const rarityColor = rarityColors[item.item_data.rarity] || rarityColors.common;
+                                    
+                                    return `
+                                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-2">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1">
+                                                    <h4 class="font-medium ${rarityColor}">${escapeHtml(item.item_data.name)}</h4>
+                                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                        Количество: ${item.quantity} | Тип: ${escapeHtml(item.item_data.type)}${item.item_data.subtype ? ' / ' + escapeHtml(item.item_data.subtype) : ''}
+                                                    </p>
+                                                    ${item.durability_current !== null ? `
+                                                        <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                                            Прочность: ${item.durability_current}
+                                                        </p>
+                                                    ` : ''}
+                                                </div>
+                                                ${!isGhost && !data.corpse.is_looted ? `
+                                                    <button
+                                                        onclick="lootItemFromCorpse(${corpseId}, ${item.item_instance_id})"
+                                                        class="ml-3 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm whitespace-nowrap"
+                                                    >
+                                                        Забрать
+                                                    </button>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    itemsHtml = corpseInfoHtml + inventorySectionHtml + equipmentSectionHtml;
+                    
+                    if (isGhost) {
+                        itemsHtml += `
+                            <div class="bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 rounded-lg p-3 mt-4">
+                                <p class="text-sm text-yellow-800 dark:text-yellow-200">
+                                    ⚠ Призраки не могут забирать предметы из трупов
+                                </p>
+                            </div>
+                        `;
+                    }
+                }
+                
+                document.getElementById('corpseItemsModalContent').innerHTML = itemsHtml;
+                document.getElementById('corpseItemsModal').classList.remove('hidden');
+            } else {
+                alert(data.error || 'Ошибка при загрузке предметов');
+            }
+        } catch (error) {
+            console.error('Error loading corpse items:', error);
+            alert('Произошла ошибка при загрузке предметов');
+        }
+    }
+    
+    // Функция закрытия модального окна трупа
+    function closeCorpseItemsModal() {
+        document.getElementById('corpseItemsModal').classList.add('hidden');
+        document.getElementById('corpseItemsModalContent').innerHTML = '';
+    }
+    
+    // Закрытие модального окна по ESC
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            const modal = document.getElementById('corpseItemsModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeCorpseItemsModal();
+            }
+        }
+    });
+
+    // Функция подбора предмета с трупа
+    async function lootItemFromCorpse(corpseId, itemInstanceId) {
+        // Проверка, что персонаж не призрак
+        if (window.currentCharacterIsGhost) {
+            alert('Призраки не могут забирать предметы из трупов');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/corpse/${corpseId}/loot`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    item_instance_id: itemInstanceId
+                })
+            });
+
+            let data;
+            try {
+                const text = await response.text();
+                data = text ? JSON.parse(text) : {};
+            } catch (parseError) {
+                console.error('Error parsing response:', parseError);
+                alert('Ошибка при обработке ответа сервера');
+                return;
+            }
+
+            if (response.ok && data.success) {
+                const itemName = data.item?.name || 'предмет';
+                alert(`Предмет "${itemName}" успешно подобран!`);
+                try {
+                    closeCorpseItemsModal(); // Закрываем модальное окно
+                } catch (e) {
+                    console.error('Error closing modal:', e);
+                }
+                try {
+                    loadLocation(); // Перезагружаем локацию
+                } catch (e) {
+                    console.error('Error reloading location:', e);
+                }
+            } else {
+                alert(data.error || 'Ошибка при подборе предмета');
+            }
+        } catch (error) {
+            console.error('Error looting item:', error);
+            alert('Произошла ошибка при подборе предмета: ' + error.message);
+        }
+    }
+
+    // Функция подбора всех предметов с трупа
+    async function lootAllFromCorpse(corpseId) {
+        // Проверка, что персонаж не призрак
+        if (window.currentCharacterIsGhost) {
+            alert('Призраки не могут забирать предметы из трупов');
+            return;
+        }
+        
+        if (!confirm('Забрать все предметы с трупа?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/corpse/${corpseId}/loot-all`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let data;
+            try {
+                const text = await response.text();
+                data = text ? JSON.parse(text) : {};
+            } catch (parseError) {
+                console.error('Error parsing response:', parseError);
+                alert('Ошибка при обработке ответа сервера');
+                return;
+            }
+
+            if (response.ok && data.success) {
+                const lootedCount = data.looted_items?.length || 0;
+                alert(`Подобрано предметов: ${lootedCount}`);
+                try {
+                    closeCorpseItemsModal(); // Закрываем модальное окно, если открыто
+                } catch (e) {
+                    console.error('Error closing modal:', e);
+                }
+                try {
+                    loadLocation(); // Перезагружаем локацию
+                } catch (e) {
+                    console.error('Error reloading location:', e);
+                }
+            } else {
+                alert(data.error || 'Ошибка при подборе предметов');
+            }
+        } catch (error) {
+            console.error('Error looting all items:', error);
+            alert('Произошла ошибка при подборе предметов: ' + error.message);
+        }
+    }
+
     // Функция перемещения в локацию
     async function moveToLocation(direction, customName) {
         try {
@@ -1970,11 +2602,23 @@
             const data = await response.json();
 
             if (response.ok) {
+                // Устанавливаем уровень персонажа
+                window.currentCharacterLevel = {{ $character->level }};
+                
+                // Проверяем, является ли текущий персонаж призраком
+                const currentCharacterId = {{ $character->id }};
+                const isGhost = (data.ghosts || []).some(ghost => ghost.character_id === currentCharacterId);
+                window.currentCharacterIsGhost = isGhost;
+                
                 // Обновляем локацию после перемещения
                 renderLocation(data.location);
                 renderExits(data.exits || []);
                 renderItems(data.items || []);
+                renderResurrectionStones(data.resurrection_stones || []);
                 renderNpcs(data.npcs || []);
+                renderCorpses(data.corpses || []);
+                renderPlayers(data.players || []);
+                renderGhosts(data.ghosts || []);
             } else {
                 alert(data.error || 'Ошибка при перемещении');
                 if (data.errors && Array.isArray(data.errors)) {

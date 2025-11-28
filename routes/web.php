@@ -93,6 +93,8 @@ Route::middleware('auth')->group(function () {
         Route::get('location/{location}/exits', [LocationController::class, 'exits'])->name('location.exits');
         Route::get('location/{location}/items', [LocationController::class, 'items'])->name('location.items');
         Route::get('location/{location}/players', [LocationController::class, 'players'])->name('location.players');
+        Route::get('location/{location}/ghosts', [LocationController::class, 'ghosts'])->name('location.ghosts');
+        Route::get('location/{location}/corpses', [LocationController::class, 'corpses'])->name('location.corpses');
         Route::get('world/map', [LocationController::class, 'map'])->name('world.map');
 
         // Game session routes (API)
@@ -133,6 +135,36 @@ Route::middleware('auth')->group(function () {
             Route::post('deposit', [\App\Http\Controllers\Api\BankController::class, 'deposit'])->name('deposit');
             Route::post('withdraw', [\App\Http\Controllers\Api\BankController::class, 'withdraw'])->name('withdraw');
             Route::post('upgrade', [\App\Http\Controllers\Api\BankController::class, 'upgrade'])->name('upgrade');
+        });
+
+        // Death and resurrection routes (API)
+        Route::prefix('character')->name('character.')->group(function () {
+            Route::post('die', [\App\Http\Controllers\Api\DeathController::class, 'die'])->name('die');
+            Route::post('resurrect/{ghost_id}', [\App\Http\Controllers\Api\ResurrectionController::class, 'resurrectGhost'])->name('resurrect');
+        });
+
+        Route::prefix('ghost')->name('ghost.')->group(function () {
+            Route::post('resurrection-stones/{id}/interact', [\App\Http\Controllers\Api\ResurrectionController::class, 'selfResurrect'])->name('resurrection-stones.interact');
+        });
+
+        Route::prefix('corpse')->name('corpse.')->group(function () {
+            Route::get('{corpse}/items', [\App\Http\Controllers\Api\CorpseController::class, 'getItems'])->name('items');
+            Route::post('{corpse}/loot', [\App\Http\Controllers\Api\CorpseController::class, 'loot'])->name('loot');
+            Route::post('{corpse}/loot-all', [\App\Http\Controllers\Api\CorpseController::class, 'lootAll'])->name('loot-all');
+        });
+
+        Route::prefix('world')->name('world.')->group(function () {
+            Route::get('resurrection-stones', [\App\Http\Controllers\Api\ResurrectionStoneController::class, 'getAllStones'])->name('resurrection-stones');
+        });
+
+        // Resurrection stones routes (API)
+        Route::prefix('resurrection-stones')->name('resurrection-stones.')->group(function () {
+            Route::get('{id}', [\App\Http\Controllers\Api\ResurrectionStoneController::class, 'show'])->name('show');
+            Route::get('{id}/cooldown', [\App\Http\Controllers\Api\ResurrectionStoneController::class, 'getCooldown'])->name('cooldown');
+        });
+
+        Route::prefix('location')->name('location.')->group(function () {
+            Route::get('{id}/resurrection-stones', [\App\Http\Controllers\Api\ResurrectionStoneController::class, 'getStonesInLocation'])->name('resurrection-stones');
         });
     });
 });
@@ -200,4 +232,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/{bankStorage}', [\App\Http\Controllers\Admin\BankStorageController::class, 'destroy'])->name('destroy');
         Route::post('/characters/{character}/clear', [\App\Http\Controllers\Admin\BankStorageController::class, 'clear'])->name('clear');
     });
+
+    // Deaths management
+    Route::get('deaths', [\App\Http\Controllers\Admin\DeathController::class, 'index'])->name('deaths.index');
+    Route::get('deaths/{death}', [\App\Http\Controllers\Admin\DeathController::class, 'show'])->name('deaths.show');
+
+    // Resurrection stones management
+    Route::resource('resurrection-stones', \App\Http\Controllers\Admin\ResurrectionStoneController::class)->except(['show']);
 });

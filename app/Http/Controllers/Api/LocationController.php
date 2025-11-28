@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\MoveLocationRequest;
 use App\Models\ActiveNpc;
 use App\Models\Character;
+use App\Models\CorpseContainer;
+use App\Models\GhostState;
 use App\Models\ItemInstance;
 use App\Models\Location;
 use App\Models\LocationExit;
+use App\Models\ResurrectionStone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,11 +56,34 @@ class LocationController extends Controller
             ->with(['npc.stats', 'npc.equipment.item'])
             ->get();
 
+        $corpses = CorpseContainer::where('location_id', $location->id)
+            ->where('expires_at', '>', now())
+            ->with('character:id,name')
+            ->get();
+
+        $ghosts = GhostState::where('location_id', $location->id)
+            ->where('is_visible', true)
+            ->with('character:id,name,level')
+            ->get();
+
+        // Получаем обычных игроков (не призраков) в локации
+        $onlinePlayers = $location->onlinePlayers()
+            ->with('character:id,name,level,location_id')
+            ->get();
+
+        // Получаем камни воскрешения в локации
+        $resurrectionStones = ResurrectionStone::where('location_id', $location->id)
+            ->get();
+
         return response()->json([
             'location' => $this->formatLocation($location),
             'exits' => $this->formatExits($location->exits, $character),
             'items' => $this->formatItems($items),
             'npcs' => $this->formatNpcs($npcs),
+            'corpses' => $this->formatCorpses($corpses, $character),
+            'ghosts' => $this->formatGhosts($ghosts),
+            'players' => $this->formatPlayers($onlinePlayers, $character),
+            'resurrection_stones' => $this->formatResurrectionStones($resurrectionStones, $character),
         ]);
     }
 
@@ -130,6 +156,25 @@ class LocationController extends Controller
                 ->with(['npc.stats', 'npc.equipment.item'])
                 ->get();
 
+            $corpses = CorpseContainer::where('location_id', $newLocation->id)
+                ->where('expires_at', '>', now())
+                ->with('character:id,name')
+                ->get();
+
+            $ghosts = GhostState::where('location_id', $newLocation->id)
+                ->where('is_visible', true)
+                ->with('character:id,name,level')
+                ->get();
+
+            // Получаем обычных игроков (не призраков) в локации
+            $onlinePlayers = $newLocation->onlinePlayers()
+                ->with('character:id,name,level,location_id')
+                ->get();
+
+            // Получаем камни воскрешения в новой локации
+            $resurrectionStones = ResurrectionStone::where('location_id', $newLocation->id)
+                ->get();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Вы успешно переместились',
@@ -137,6 +182,10 @@ class LocationController extends Controller
                 'exits' => $this->formatExits($newLocation->exits, $character),
                 'items' => $this->formatItems($items),
                 'npcs' => $this->formatNpcs($npcs),
+                'corpses' => $this->formatCorpses($corpses, $character),
+                'ghosts' => $this->formatGhosts($ghosts),
+                'players' => $this->formatPlayers($onlinePlayers, $character),
+                'resurrection_stones' => $this->formatResurrectionStones($resurrectionStones, $character),
             ]);
         } catch (\Exception $e) {
             Log::error('Location move failed', [
@@ -299,6 +348,79 @@ class LocationController extends Controller
     }
 
     /**
+     * Получить список призраков в локации.
+     * GET /api/location/{id}/ghosts
+     */
+    public function ghosts(Request $request, Location $location): JsonResponse
+    {
+        $ghosts = GhostState::where('location_id', $location->id)
+            ->where('is_visible', true)
+            ->with('character:id,name,level,location_id')
+            ->get();
+
+        $ghostsList = $ghosts->map(function ($ghostState) {
+            $character = $ghostState->character;
+
+            return [
+                'id' => $ghostState->id,
+                'character_id' => $character->id,
+                'character_name' => $character->name,
+                'is_visible' => $ghostState->is_visible,
+                'created_at' => $ghostState->created_at->toIso8601String(),
+            ];
+        })->values();
+
+        return response()->json([
+            'location' => [
+                'id' => $location->id,
+                'name' => $location->name,
+            ],
+            'ghosts' => $ghostsList,
+            'count' => $ghostsList->count(),
+        ]);
+    }
+
+    /**
+     * Получить список трупов в локации.
+     * GET /api/location/{id}/corpses
+     */
+    public function corpses(Request $request, Location $location): JsonResponse
+    {
+        $character = $this->getActiveCharacter($request);
+
+        $corpses = CorpseContainer::where('location_id', $location->id)
+            ->where('expires_at', '>', now())
+            ->with('character:id,name')
+            ->get();
+
+        $corpsesList = $corpses->map(function ($corpse) use ($character) {
+            $itemsData = $corpse->items_data ?? [];
+            $totalItems = count($itemsData['inventory'] ?? []) + count($itemsData['equipment'] ?? []);
+
+            return [
+                'id' => $corpse->id,
+                'character_id' => $corpse->character_id,
+                'character_name' => $corpse->character->name,
+                'corpse_type' => $corpse->corpse_type,
+                'expires_at' => $corpse->expires_at->toIso8601String(),
+                'remaining_minutes' => $corpse->getRemainingMinutes(),
+                'is_looted' => $corpse->is_looted,
+                'total_items' => $totalItems,
+                'belongs_to_me' => $character ? $corpse->belongsToCharacter($character) : false,
+            ];
+        })->values();
+
+        return response()->json([
+            'location' => [
+                'id' => $location->id,
+                'name' => $location->name,
+            ],
+            'corpses' => $corpsesList,
+            'count' => $corpsesList->count(),
+        ]);
+    }
+
+    /**
      * Получить активного персонажа пользователя.
      */
     private function getActiveCharacter(Request $request): ?Character
@@ -428,5 +550,98 @@ class LocationController extends Controller
                 'spawned_at' => $activeNpc->spawned_at?->toIso8601String(),
             ];
         })->filter()->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные трупов для ответа.
+     */
+    private function formatCorpses($corpses, ?Character $character = null): array
+    {
+        return $corpses->map(function (CorpseContainer $corpse) use ($character) {
+            $itemsData = $corpse->items_data ?? [];
+            $totalItems = count($itemsData['inventory'] ?? []) + count($itemsData['equipment'] ?? []);
+
+            return [
+                'id' => $corpse->id,
+                'character_id' => $corpse->character_id,
+                'character_name' => $corpse->character->name,
+                'corpse_type' => $corpse->corpse_type,
+                'expires_at' => $corpse->expires_at->toIso8601String(),
+                'remaining_minutes' => $corpse->getRemainingMinutes(),
+                'is_looted' => $corpse->is_looted,
+                'total_items' => $totalItems,
+                'belongs_to_me' => $character ? $corpse->belongsToCharacter($character) : false,
+            ];
+        })->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные призраков для ответа.
+     */
+    private function formatGhosts($ghosts): array
+    {
+        return $ghosts->map(function (GhostState $ghostState) {
+            $character = $ghostState->character;
+
+            return [
+                'id' => $ghostState->id,
+                'character_id' => $character->id,
+                'character_name' => $character->name,
+                'level' => $character->level,
+                'is_visible' => $ghostState->is_visible,
+                'created_at' => $ghostState->created_at->toIso8601String(),
+            ];
+        })->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные игроков для ответа.
+     */
+    private function formatPlayers($players, ?Character $currentCharacter = null): array
+    {
+        return $players->map(function ($presence) use ($currentCharacter) {
+            $character = $presence->character;
+            $isCurrentPlayer = $currentCharacter && $character->id === $currentCharacter->id;
+
+            return [
+                'id' => $character->id,
+                'name' => $character->name,
+                'level' => $character->level,
+                'status' => $presence->status,
+                'is_visible' => $presence->is_visible,
+                'is_current_player' => $isCurrentPlayer,
+                'last_action_at' => $presence->last_action_at?->toIso8601String(),
+            ];
+        })->filter(function ($player) {
+            // Исключаем текущего игрока из списка
+            return ! $player['is_current_player'];
+        })->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные камней воскрешения для ответа.
+     */
+    private function formatResurrectionStones($stones, ?Character $character = null): array
+    {
+        $isGhost = $character && $character->isGhost();
+
+        return $stones->map(function (ResurrectionStone $stone) use ($isGhost, $character) {
+            $isAvailable = $stone->is_active && $stone->isAvailable();
+            $canUse = $isGhost && $isAvailable && ($character ? $stone->canBeUsedByLevel($character->level) : false);
+
+            return [
+                'id' => $stone->id,
+                'name' => $stone->name,
+                'description' => $stone->description,
+                'level_required' => $stone->level_required,
+                'is_active' => $stone->is_active,
+                'is_available' => $isAvailable,
+                'can_use' => $canUse,
+                'cooldown_minutes' => $stone->cooldown_minutes,
+                'remaining_cooldown_minutes' => $stone->getRemainingCooldownMinutes(),
+                'visual_effect' => $stone->visual_effect,
+                'last_used_at' => $stone->last_used_at?->toIso8601String(),
+            ];
+        })->values()->toArray();
     }
 }
