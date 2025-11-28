@@ -109,6 +109,9 @@
     </div>
 </div>
 
+<!-- Модальное окно для взаимодействия с NPC -->
+@include('game.npc-interaction')
+
 <!-- Модальное окно для осмотра предмета на земле -->
 <div id="groundItemModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-[#161615] rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -476,14 +479,14 @@
                             <!-- Кнопки действий -->
                             <div class="flex gap-2 mt-3">
                                 <button
-                                    onclick="interactWithNpc(${npc.id}, '${escapeHtml(npc.name)}')"
+                                    onclick="interactWithNpc(${npc.npc_id}, '${escapeHtml(npc.name)}')"
                                     class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
                                 >
                                     Взаимодействовать
                                 </button>
                                 ${npc.is_hostile ? `
                                     <button
-                                        onclick="attackNpc(${npc.id}, '${escapeHtml(npc.name)}')"
+                                        onclick="attackNpc(${npc.npc_id}, '${escapeHtml(npc.name)}')"
                                         class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
                                     >
                                         Атаковать
@@ -499,11 +502,936 @@
         document.getElementById('npcs-content').innerHTML = npcsHtml;
     }
 
+    // Переменные для работы с NPC
+    let currentNpcId = null;
+    let currentNpcData = null;
+    let currentDialogHistory = [];
+    let currentDialogId = null;
+
     // Функция взаимодействия с NPC
-    function interactWithNpc(npcId, npcName) {
-        // TODO: Реализовать взаимодействие с NPC
-        alert(`Взаимодействие с ${npcName} (ID: ${npcId}) - будет реализовано позже`);
+    async function interactWithNpc(npcId, npcName) {
+        try {
+            currentNpcId = npcId;
+            const response = await fetch(`{{ route('api.npcs.show', ['npc' => '__NPC_ID__']) }}`.replace('__NPC_ID__', npcId), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                currentNpcData = data;
+                openNpcInteractionModal(data);
+            } else {
+                alert(data.error || 'Ошибка при загрузке информации о NPC');
+            }
+        } catch (error) {
+            console.error('Error loading NPC:', error);
+            alert('Произошла ошибка при загрузке информации о NPC');
+        }
     }
+
+    // Открыть модальное окно взаимодействия с NPC
+    function openNpcInteractionModal(data) {
+        const modal = document.getElementById('npcInteractionModal');
+        const npc = data.npc;
+
+        // Заполняем заголовок
+        document.getElementById('npcModalName').textContent = npc.name;
+        
+        // Бейджи
+        const badgesContainer = document.getElementById('npcModalBadges');
+        badgesContainer.innerHTML = '';
+        
+        if (npc.is_merchant) {
+            badgesContainer.innerHTML += '<span class="px-2 py-1 text-xs rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Торговец</span>';
+        }
+        if (npc.is_teacher) {
+            badgesContainer.innerHTML += '<span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Учитель</span>';
+        }
+        if (npc.is_quest_giver) {
+            badgesContainer.innerHTML += '<span class="px-2 py-1 text-xs rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Квестодатель</span>';
+        }
+        if (npc.is_hostile) {
+            badgesContainer.innerHTML += '<span class="px-2 py-1 text-xs rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Враждебный</span>';
+        }
+
+        // Скрываем вкладки, которые недоступны
+        const tabs = document.querySelectorAll('.npc-tab');
+        tabs.forEach(tab => {
+            const tabName = tab.dataset.tab;
+            if (tabName === 'trade' && !npc.is_merchant) {
+                tab.style.display = 'none';
+            } else if (tabName === 'training' && !npc.is_teacher) {
+                tab.style.display = 'none';
+            } else if (tabName === 'quests' && !npc.is_quest_giver) {
+                tab.style.display = 'none';
+            } else {
+                tab.style.display = 'block';
+            }
+        });
+
+        // Заполняем данные для всех вкладок
+        populateNpcOverview(data);
+        populateNpcDialog(data);
+        populateNpcQuests(data);
+        populateNpcTrade(data);
+        populateNpcTraining(data);
+
+        // Показываем модальное окно и переключаемся на первую доступную вкладку
+        modal.classList.remove('hidden');
+        switchNpcTab('overview');
+    }
+
+    // Закрыть модальное окно
+    function closeNpcInteractionModal() {
+        document.getElementById('npcInteractionModal').classList.add('hidden');
+        currentNpcId = null;
+        currentNpcData = null;
+        currentDialogHistory = [];
+        currentDialogId = null;
+    }
+
+    // Переключение вкладок
+    function switchNpcTab(tabName) {
+        // Обновляем стили вкладок
+        document.querySelectorAll('.npc-tab').forEach(tab => {
+            if (tab.dataset.tab === tabName) {
+                tab.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+                tab.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            } else {
+                tab.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+                tab.classList.add('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            }
+        });
+
+        // Показываем/скрываем содержимое вкладок
+        document.querySelectorAll('.npc-tab-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        document.getElementById(`npcTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('hidden');
+    }
+
+    // Заполнить вкладку "Обзор"
+    function populateNpcOverview(data) {
+        const npc = data.npc;
+        
+        document.getElementById('npcOverviewDescription').textContent = npc.description || 'Нет описания';
+        
+        if (npc.stats) {
+            document.getElementById('npcOverviewStats').classList.remove('hidden');
+            document.getElementById('npcOverviewLevel').textContent = npc.stats.level;
+            document.getElementById('npcOverviewStrength').textContent = npc.stats.strength;
+            document.getElementById('npcOverviewAgility').textContent = npc.stats.agility;
+            document.getElementById('npcOverviewIntelligence').textContent = npc.stats.intelligence;
+            
+            const healthPercent = (npc.stats.health_current / npc.stats.health_max) * 100;
+            document.getElementById('npcOverviewHealthText').textContent = `${npc.stats.health_current} / ${npc.stats.health_max}`;
+            document.getElementById('npcOverviewHealthBar').style.width = `${healthPercent}%`;
+            
+            const manaPercent = (npc.stats.mana_current / npc.stats.mana_max) * 100;
+            document.getElementById('npcOverviewManaText').textContent = `${npc.stats.mana_current} / ${npc.stats.mana_max}`;
+            document.getElementById('npcOverviewManaBar').style.width = `${manaPercent}%`;
+        } else {
+            document.getElementById('npcOverviewStats').classList.add('hidden');
+        }
+
+        const behaviorNames = {
+            'passive': 'Пассивный',
+            'neutral': 'Нейтральный',
+            'aggressive': 'Агрессивный'
+        };
+        document.getElementById('npcOverviewBehavior').textContent = behaviorNames[npc.ai_behavior] || npc.ai_behavior;
+    }
+
+    // Заполнить вкладку "Диалог"
+    function populateNpcDialog(data) {
+        const dialogs = data.dialogs || [];
+        
+        if (dialogs.length === 0) {
+            document.getElementById('npcDialogCurrent').classList.add('hidden');
+            document.getElementById('npcDialogNoDialogs').classList.remove('hidden');
+            document.getElementById('npcDialogHistory').innerHTML = '';
+            return;
+        }
+
+        document.getElementById('npcDialogNoDialogs').classList.add('hidden');
+        document.getElementById('npcDialogCurrent').classList.remove('hidden');
+        
+        // Очищаем историю при первом открытии
+        currentDialogHistory = [];
+        
+        // Показываем первый доступный диалог
+        if (dialogs.length > 0) {
+            showDialog(dialogs[0]);
+        }
+    }
+
+    // Показать диалог
+    function showDialog(dialog) {
+        if (!dialog) return;
+        
+        currentDialogId = dialog.id;
+        document.getElementById('npcDialogText').textContent = dialog.text || '';
+        
+        // Добавляем в историю только если это новый диалог
+        const isNewDialog = !currentDialogHistory.some(h => h.dialogId === dialog.id);
+        if (isNewDialog) {
+            currentDialogHistory.push({
+                type: 'npc',
+                text: dialog.text || '',
+                dialogId: dialog.id
+            });
+            updateDialogHistory();
+        }
+
+        // Показываем ответы
+        const answersContainer = document.getElementById('npcDialogAnswers');
+        answersContainer.innerHTML = '';
+        
+        if (dialog.answers && dialog.answers.length > 0) {
+            dialog.answers.forEach(answer => {
+                const answerDiv = document.createElement('div');
+                let answerHtml = `<button onclick="selectDialogAnswer(${answer.id}, ${answer.next_dialog_id || 'null'})" class="w-full text-left px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors mb-2">`;
+                
+                answerHtml += `<div class="font-medium">${escapeHtml(answer.text || '')}</div>`;
+                
+                if (answer.item_required) {
+                    answerHtml += `<div class="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Требуется: ${escapeHtml(answer.item_required.name || '')}</div>`;
+                }
+                if (answer.skill_required) {
+                    answerHtml += `<div class="text-xs text-blue-600 dark:text-blue-400 mt-1">Требуется навык: ${escapeHtml(answer.skill_required.name || '')} (ур. ${answer.skill_required.level_required || 0})</div>`;
+                }
+                
+                answerHtml += `</button>`;
+                answerDiv.innerHTML = answerHtml;
+                answersContainer.appendChild(answerDiv);
+            });
+        } else {
+            answersContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">Диалог завершен</p>';
+        }
+    }
+
+    // Выбрать ответ в диалоге
+    async function selectDialogAnswer(answerId, nextDialogId) {
+        try {
+            const response = await fetch('{{ route("api.dialogs.answer") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    dialog_id: currentDialogId,
+                    answer_id: answerId
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Добавляем ответ в историю
+                const answer = currentNpcData.dialogs
+                    .flatMap(d => (d.answers || []))
+                    .find(a => a.id === answerId);
+                
+                if (answer) {
+                    currentDialogHistory.push({
+                        type: 'player',
+                        text: answer.text || ''
+                    });
+                    updateDialogHistory();
+                }
+
+                if (data.dialog && data.dialog.id) {
+                    // Показываем следующий диалог - нужно загрузить полные данные
+                    const nextDialog = {
+                        id: data.dialog.id,
+                        text: data.dialog.text,
+                        answers: data.answers || []
+                    };
+                    showDialog(nextDialog);
+                } else if (data.dialog_completed) {
+                    // Диалог завершен
+                    document.getElementById('npcDialogAnswers').innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">Диалог завершен</p>';
+                    
+                    if (data.quest_started) {
+                        alert('Квест принят!');
+                        // Обновляем данные NPC
+                        await interactWithNpc(currentNpcId, currentNpcData.npc.name);
+                    }
+                }
+            } else {
+                alert(data.error || 'Ошибка при обработке ответа');
+            }
+        } catch (error) {
+            console.error('Error answering dialog:', error);
+            alert('Произошла ошибка при обработке ответа');
+        }
+    }
+
+    // Обновить историю диалога
+    function updateDialogHistory() {
+        const historyContainer = document.getElementById('npcDialogHistory');
+        historyContainer.innerHTML = '';
+        
+        currentDialogHistory.forEach(entry => {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = entry.type === 'npc' 
+                ? 'bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg'
+                : 'bg-gray-100 dark:bg-gray-700 p-3 rounded-lg ml-8';
+            entryDiv.innerHTML = `<div class="text-xs text-gray-500 dark:text-gray-400 mb-1">${entry.type === 'npc' ? currentNpcData.npc.name : 'Вы'}</div><div>${escapeHtml(entry.text)}</div>`;
+            historyContainer.appendChild(entryDiv);
+        });
+        
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+    }
+
+    // Заполнить вкладку "Квесты"
+    function populateNpcQuests(data) {
+        const questsToTurnIn = data.quests_to_turn_in || [];
+        const availableQuests = data.available_quests || [];
+        
+        if (questsToTurnIn.length === 0 && availableQuests.length === 0) {
+            document.getElementById('npcQuestsNone').classList.remove('hidden');
+            document.getElementById('npcQuestsToTurnIn').classList.add('hidden');
+            document.getElementById('npcQuestsAvailable').classList.add('hidden');
+            return;
+        }
+
+        document.getElementById('npcQuestsNone').classList.add('hidden');
+
+        // Квесты для сдачи
+        if (questsToTurnIn.length > 0) {
+            document.getElementById('npcQuestsToTurnIn').classList.remove('hidden');
+            const container = document.getElementById('npcQuestsToTurnInList');
+            container.innerHTML = '';
+            
+            questsToTurnIn.forEach(quest => {
+                const questDiv = document.createElement('div');
+                questDiv.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+                let html = `<h4 class="font-semibold text-lg mb-2">${escapeHtml(quest.name)}</h4>`;
+                html += `<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">${escapeHtml(quest.description)}</p>`;
+                
+                html += `<div class="mb-3"><strong class="text-sm">Цели:</strong><ul class="list-disc list-inside mt-1 text-sm">`;
+                quest.objectives.forEach(objective => {
+                    const completed = objective.completed ? '✓' : '';
+                    html += `<li class="${objective.completed ? 'text-green-600 dark:text-green-400' : ''}">${completed} ${escapeHtml(objective.description)} (${objective.current_count}/${objective.required_count})</li>`;
+                });
+                html += `</ul></div>`;
+                
+                const allCompleted = quest.objectives.every(o => o.completed);
+                if (allCompleted) {
+                    html += `<button onclick="completeQuest(${quest.character_quest_id})" class="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium">Сдать квест</button>`;
+                } else {
+                    html += `<button disabled class="w-full px-4 py-2 bg-gray-400 text-white rounded cursor-not-allowed font-medium">Не все цели выполнены</button>`;
+                }
+                
+                questDiv.innerHTML = html;
+                container.appendChild(questDiv);
+            });
+        } else {
+            document.getElementById('npcQuestsToTurnIn').classList.add('hidden');
+        }
+
+        // Доступные квесты
+        if (availableQuests.length > 0) {
+            document.getElementById('npcQuestsAvailable').classList.remove('hidden');
+            const container = document.getElementById('npcQuestsAvailableList');
+            container.innerHTML = '';
+            
+            availableQuests.forEach(quest => {
+                const questDiv = document.createElement('div');
+                questDiv.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+                let html = `<h4 class="font-semibold text-lg mb-2">${escapeHtml(quest.name)}</h4>`;
+                html += `<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">${escapeHtml(quest.description)}</p>`;
+                
+                if (quest.min_level || quest.max_level) {
+                    html += `<p class="text-xs text-gray-500 dark:text-gray-500 mb-2">Уровень: ${quest.min_level || 1} - ${quest.max_level || '∞'}</p>`;
+                }
+                
+                html += `<div class="mb-3"><strong class="text-sm">Цели:</strong><ul class="list-disc list-inside mt-1 text-sm">`;
+                quest.objectives.forEach(objective => {
+                    html += `<li>${escapeHtml(objective.description)} (${objective.required_count})</li>`;
+                });
+                html += `</ul></div>`;
+                
+                html += `<button onclick="acceptQuest(${quest.id})" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">Принять квест</button>`;
+                
+                questDiv.innerHTML = html;
+                container.appendChild(questDiv);
+            });
+        } else {
+            document.getElementById('npcQuestsAvailable').classList.add('hidden');
+        }
+    }
+
+    // Принять квест
+    async function acceptQuest(questId) {
+        try {
+            const response = await fetch('{{ route("api.quests.accept") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    quest_id: questId
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Квест принят!');
+                // Обновляем данные NPC
+                await interactWithNpc(currentNpcId, currentNpcData.npc.name);
+            } else {
+                alert(data.error || 'Ошибка при принятии квеста');
+            }
+        } catch (error) {
+            console.error('Error accepting quest:', error);
+            alert('Произошла ошибка при принятии квеста');
+        }
+    }
+
+    // Завершить квест
+    async function completeQuest(characterQuestId) {
+        try {
+            const response = await fetch('{{ route("api.quests.complete") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    character_quest_id: characterQuestId
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert('Квест завершен!');
+                // Обновляем данные NPC
+                await interactWithNpc(currentNpcId, currentNpcData.npc.name);
+            } else {
+                alert(data.error || 'Ошибка при завершении квеста');
+            }
+        } catch (error) {
+            console.error('Error completing quest:', error);
+            alert('Произошла ошибка при завершении квеста');
+        }
+    }
+
+    // Заполнить вкладку "Торговля"
+    function populateNpcTrade(data) {
+        document.getElementById('npcTradePlayerGold').textContent = data.character.gold || 0;
+        
+        const items = data.merchant_items || [];
+        
+        if (items.length === 0) {
+            document.getElementById('npcTradeNoItems').classList.remove('hidden');
+            document.getElementById('npcTradeItems').innerHTML = '';
+        } else {
+            document.getElementById('npcTradeNoItems').classList.add('hidden');
+            // Сохраняем все товары для фильтрации
+            window.npcTradeAllItems = items;
+            renderNpcTradeItems(items);
+        }
+
+        // Сохраняем данные NPC для использования в функциях продажи
+        if (!window.currentNpcData) {
+            window.currentNpcData = data;
+        } else {
+            // Обновляем данные, сохраняя merchant_items
+            window.currentNpcData = data;
+        }
+
+        // Загружаем инвентарь игрока для продажи только если открыта вкладка продажи
+        const sellTabContent = document.getElementById('tradeSubTabSellContent');
+        if (sellTabContent && !sellTabContent.classList.contains('hidden')) {
+            window.playerInventoryLoaded = false;
+            loadPlayerInventoryForSell();
+        }
+    }
+
+    // Обновить только данные торговли без перезагрузки всего модального окна
+    async function refreshNpcTradeData(npcId) {
+        try {
+            const response = await fetch(`{{ route('api.npcs.show', ['npc' => '__NPC_ID__']) }}`.replace('__NPC_ID__', npcId), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Обновляем только данные торговли
+                populateNpcTrade(data);
+            }
+        } catch (error) {
+            console.error('Error refreshing trade data:', error);
+        }
+    }
+
+    // Переключение подвкладок Купить/Продать
+    function switchTradeSubTab(subTab) {
+        // Обновляем стили кнопок
+        const buyBtn = document.getElementById('tradeSubTabBuy');
+        const sellBtn = document.getElementById('tradeSubTabSell');
+        
+        if (subTab === 'buy') {
+            buyBtn.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            buyBtn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            sellBtn.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            sellBtn.classList.add('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            
+            document.getElementById('tradeSubTabBuyContent').classList.remove('hidden');
+            document.getElementById('tradeSubTabSellContent').classList.add('hidden');
+        } else {
+            sellBtn.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            sellBtn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            buyBtn.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            buyBtn.classList.add('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            
+            document.getElementById('tradeSubTabSellContent').classList.remove('hidden');
+            document.getElementById('tradeSubTabBuyContent').classList.add('hidden');
+            
+            // Загружаем инвентарь при переключении на вкладку продажи
+            if (!window.playerInventoryLoaded) {
+                loadPlayerInventoryForSell();
+            }
+        }
+    }
+
+    // Загрузить инвентарь игрока для продажи
+    async function loadPlayerInventoryForSell() {
+        try {
+            // Загружаем инвентарь
+            const inventoryResponse = await fetch(`{{ route('api.characters.inventory', ['character' => $character->id]) }}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            // Загружаем экипировку
+            const equipmentResponse = await fetch(`{{ route('api.characters.equipment', ['character' => $character->id]) }}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const inventoryData = await inventoryResponse.json();
+            const equipmentData = await equipmentResponse.json();
+
+            if (inventoryResponse.ok && equipmentResponse.ok) {
+                window.playerInventoryLoaded = true;
+                
+                // Объединяем предметы из инвентаря и экипировки
+                const inventoryItems = Array.isArray(inventoryData) ? inventoryData : [];
+                const equipmentItems = [];
+                
+                // Преобразуем экипировку в формат itemInstance
+                // equipmentData - это объект, где ключи - слоты, значения - CharacterEquipment
+                if (equipmentData && typeof equipmentData === 'object') {
+                    Object.values(equipmentData).forEach(equipment => {
+                        if (equipment && equipment.item_instance) {
+                            const itemInstance = equipment.item_instance;
+                            if (itemInstance && itemInstance.item) {
+                                equipmentItems.push({
+                                    id: itemInstance.id,
+                                    quantity: itemInstance.quantity || 1,
+                                    item: itemInstance.item,
+                                    location_type: 'equipped',
+                                    slot: equipment.slot
+                                });
+                            }
+                        }
+                    });
+                }
+                
+                // Объединяем все предметы
+                const allItems = [
+                    ...inventoryItems.map(item => ({
+                        ...item,
+                        location_type: 'inventory'
+                    })),
+                    ...equipmentItems
+                ];
+                
+                window.playerInventoryAllItems = allItems;
+                renderPlayerInventoryForSell(allItems);
+            } else {
+                document.getElementById('npcSellNoItems').textContent = 'Ошибка загрузки инвентаря';
+            }
+        } catch (error) {
+            console.error('Error loading inventory:', error);
+            document.getElementById('npcSellNoItems').textContent = 'Ошибка загрузки инвентаря';
+        }
+    }
+
+    // Отобразить предметы инвентаря для продажи
+    function renderPlayerInventoryForSell(items) {
+        const container = document.getElementById('npcSellItems');
+        container.innerHTML = '';
+        
+        if (items.length === 0) {
+            document.getElementById('npcSellNoItems').classList.remove('hidden');
+            document.getElementById('npcSellNoItems').textContent = 'В вашем инвентаре нет предметов для продажи';
+            return;
+        }
+
+        document.getElementById('npcSellNoItems').classList.add('hidden');
+        
+        items.forEach(itemInstance => {
+            const item = itemInstance.item;
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+            itemDiv.dataset.itemType = item.type || '';
+            itemDiv.dataset.itemName = (item.name || '').toLowerCase();
+            
+            const rarityColors = {
+                'common': 'text-gray-600 dark:text-gray-400',
+                'uncommon': 'text-green-600 dark:text-green-400',
+                'rare': 'text-blue-600 dark:text-blue-400',
+                'epic': 'text-purple-600 dark:text-purple-400',
+                'legendary': 'text-orange-600 dark:text-orange-400',
+            };
+            const rarityColor = rarityColors[item.rarity] || rarityColors.common;
+            
+            // Получаем цену продажи от торговца
+            const sellPrice = getSellPriceForItem(item, itemInstance.quantity || 1);
+            
+            const isEquipped = itemInstance.location_type === 'equipped';
+            const equippedBadge = isEquipped ? '<span class="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-800">Экипировано</span>' : '';
+            
+            let html = `<div class="flex justify-between items-start mb-2">`;
+            html += `<div class="flex-1">`;
+            html += `<h4 class="font-semibold ${rarityColor}">${escapeHtml(item.name)}</h4>`;
+            html += `<p class="text-sm text-gray-600 dark:text-gray-400">${escapeHtml(item.description || '')}</p>`;
+            html += `<div class="flex gap-2 mt-2">`;
+            html += `<span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">${escapeHtml(item.type)}</span>`;
+            if (equippedBadge) {
+                html += equippedBadge;
+            }
+            if (itemInstance.quantity > 1) {
+                html += `<span class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800">Количество: ${itemInstance.quantity}</span>`;
+            }
+            html += `</div>`;
+            html += `</div>`;
+            html += `<div class="text-right">`;
+            if (sellPrice > 0) {
+                html += `<div class="text-lg font-bold text-green-600 dark:text-green-400">${sellPrice} золота</div>`;
+                if (itemInstance.quantity > 1) {
+                    const totalPrice = sellPrice * itemInstance.quantity;
+                    html += `<div class="text-xs text-gray-500">Всего: ${totalPrice} золота</div>`;
+                }
+                html += `<div class="flex gap-2 mt-2">`;
+                html += `<button onclick="showTradeItemDetailsFromInventory(${itemInstance.id})" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium">Осмотреть</button>`;
+                html += `<button onclick="sellItemToMerchant(${itemInstance.id}, ${currentNpcId}, ${itemInstance.quantity || 1})" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium">Продать${itemInstance.quantity > 1 ? ' все' : ''}</button>`;
+                html += `</div>`;
+            } else {
+                html += `<div class="text-sm text-red-600 dark:text-red-400 mb-2">Торговец не покупает</div>`;
+                html += `<button onclick="showTradeItemDetailsFromInventory(${itemInstance.id})" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium">Осмотреть</button>`;
+            }
+            html += `</div>`;
+            html += `</div>`;
+            
+            itemDiv.innerHTML = html;
+            container.appendChild(itemDiv);
+        });
+    }
+
+    // Получить цену продажи предмета торговцу
+    function getSellPriceForItem(item, quantity) {
+        if (!currentNpcData || !currentNpcData.npc.is_merchant) {
+            return 0;
+        }
+        
+        // Проверяем, покупает ли торговец этот тип
+        const npc = currentNpcData.npc;
+        if (npc.merchant_buy_types && npc.merchant_buy_types.length > 0) {
+            if (!npc.merchant_buy_types.includes(item.type)) {
+                return 0;
+            }
+        }
+        
+        // Ищем цену в merchant_items (если торговец уже покупал этот предмет)
+        if (currentNpcData.merchant_items) {
+            const merchantItem = currentNpcData.merchant_items.find(mi => mi.item_id === item.id);
+            if (merchantItem && merchantItem.sell_price > 0) {
+                return merchantItem.sell_price;
+            }
+        }
+        
+        // Если тип разрешен, но предмета еще нет в ассортименте, используем базовую цену (30% от стоимости)
+        // Запись будет создана автоматически при продаже
+        return Math.floor((item.value || 0) * 0.3);
+    }
+
+    // Фильтрация предметов инвентаря для продажи
+    function filterPlayerInventoryItems() {
+        const search = document.getElementById('npcSellSearch').value.toLowerCase();
+        const filter = document.getElementById('npcSellFilter').value;
+        const allItems = window.playerInventoryAllItems || [];
+        
+        let filtered = allItems.filter(itemInstance => {
+            const item = itemInstance.item;
+            const matchesSearch = !search || (item.name || '').toLowerCase().includes(search);
+            const matchesFilter = !filter || item.type === filter;
+            return matchesSearch && matchesFilter;
+        });
+        
+        renderPlayerInventoryForSell(filtered);
+    }
+
+    // Продать предмет торговцу
+    async function sellItemToMerchant(itemInstanceId, npcId, maxQuantity = 1) {
+        try {
+            let quantity = maxQuantity;
+            
+            // Если предмет стакуемый и количество больше 1, спрашиваем сколько продать
+            if (maxQuantity > 1) {
+                const input = prompt(`Сколько предметов продать? (доступно: ${maxQuantity})`, maxQuantity.toString());
+                if (input === null) {
+                    return; // Пользователь отменил
+                }
+                quantity = parseInt(input);
+                if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
+                    alert('Укажите корректное количество (от 1 до ' + maxQuantity + ')');
+                    return;
+                }
+            }
+
+            const response = await fetch('{{ route("api.trade.sell") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    npc_id: npcId,
+                    item_instance_id: itemInstanceId,
+                    quantity: quantity
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(`Предмет успешно продан! Получено: ${data.total_price} золота`);
+                
+                // Обновляем золото игрока
+                if (data.character_gold !== undefined) {
+                    document.getElementById('npcTradePlayerGold').textContent = data.character_gold;
+                    // Обновляем данные в currentNpcData
+                    if (currentNpcData && currentNpcData.character) {
+                        currentNpcData.character.gold = data.character_gold;
+                    }
+                }
+                
+                // Обновляем только инвентарь для продажи, не закрывая окно
+                window.playerInventoryLoaded = false;
+                await loadPlayerInventoryForSell();
+            } else {
+                alert(data.error || 'Ошибка при продаже предмета');
+            }
+        } catch (error) {
+            console.error('Error selling item:', error);
+            alert('Произошла ошибка при продаже предмета');
+        }
+    }
+
+    // Отобразить товары торговца
+    function renderNpcTradeItems(items) {
+        const container = document.getElementById('npcTradeItems');
+        container.innerHTML = '';
+        
+        items.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+            itemDiv.dataset.itemType = item.type || '';
+            itemDiv.dataset.itemName = (item.name || '').toLowerCase();
+            
+            const rarityColors = {
+                'common': 'text-gray-600 dark:text-gray-400',
+                'uncommon': 'text-green-600 dark:text-green-400',
+                'rare': 'text-blue-600 dark:text-blue-400',
+                'epic': 'text-purple-600 dark:text-purple-400',
+                'legendary': 'text-orange-600 dark:text-orange-400',
+            };
+            const rarityColor = rarityColors[item.rarity] || rarityColors.common;
+            
+            let html = `<div class="flex justify-between items-start mb-2">`;
+            html += `<div class="flex-1">`;
+            html += `<h4 class="font-semibold ${rarityColor}">${escapeHtml(item.name)}</h4>`;
+            html += `<p class="text-sm text-gray-600 dark:text-gray-400">${escapeHtml(item.description || '')}</p>`;
+            html += `<div class="flex gap-2 mt-2">`;
+            html += `<span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">${escapeHtml(item.type)}</span>`;
+            if (item.quantity !== undefined && item.max_quantity > 0) {
+                html += `<span class="text-xs px-2 py-1 rounded bg-blue-100 dark:bg-blue-800">В наличии: ${item.quantity}</span>`;
+            }
+            html += `</div>`;
+            html += `</div>`;
+            html += `<div class="text-right">`;
+            html += `<div class="text-lg font-bold text-yellow-600 dark:text-yellow-400">${item.current_price || 0} золота</div>`;
+            if (item.base_price !== item.current_price) {
+                html += `<div class="text-xs text-gray-500 line-through">${item.base_price} золота</div>`;
+            }
+            html += `<div class="flex gap-2 mt-2">`;
+            html += `<button onclick="showTradeItemDetailsFromMerchant(${item.item_id || item.id})" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium">Осмотреть</button>`;
+            const canBuy = item.quantity === undefined || item.quantity > 0;
+            html += `<button onclick="buyItem(${item.id}, ${currentNpcId}, 1)" ${!canBuy ? 'disabled' : ''} class="px-3 py-1 ${canBuy ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'} text-white rounded text-xs font-medium">${canBuy ? 'Купить' : 'Нет'}</button>`;
+            html += `</div>`;
+            html += `</div>`;
+            html += `</div>`;
+            
+            itemDiv.innerHTML = html;
+            container.appendChild(itemDiv);
+        });
+    }
+
+    // Фильтрация товаров
+    function filterNpcTradeItems() {
+        const search = document.getElementById('npcTradeSearch').value.toLowerCase();
+        const filter = document.getElementById('npcTradeFilter').value;
+        const allItems = window.npcTradeAllItems || [];
+        
+        let filtered = allItems.filter(item => {
+            const matchesSearch = !search || (item.name || '').toLowerCase().includes(search);
+            const matchesFilter = !filter || item.type === filter;
+            return matchesSearch && matchesFilter;
+        });
+        
+        renderNpcTradeItems(filtered);
+    }
+
+    // Купить предмет
+    async function buyItem(merchantInventoryId, npcId, quantity = 1) {
+        try {
+            const response = await fetch('{{ route("api.trade.buy") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    npc_id: npcId,
+                    merchant_inventory_id: merchantInventoryId,
+                    quantity: quantity
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(`Предмет успешно куплен! Потрачено: ${data.total_price} золота`);
+                // Обновляем золото игрока
+                if (data.character_gold !== undefined) {
+                    document.getElementById('npcTradePlayerGold').textContent = data.character_gold;
+                    // Обновляем данные в currentNpcData
+                    if (currentNpcData && currentNpcData.character) {
+                        currentNpcData.character.gold = data.character_gold;
+                    }
+                }
+                
+                // Обновляем только данные торговли без перезагрузки всего окна
+                await refreshNpcTradeData(npcId);
+            } else {
+                alert(data.error || 'Ошибка при покупке предмета');
+            }
+        } catch (error) {
+            console.error('Error buying item:', error);
+            alert('Произошла ошибка при покупке предмета');
+        }
+    }
+
+    // Заполнить вкладку "Обучение"
+    function populateNpcTraining(data) {
+        const skills = data.teachable_skills || [];
+        
+        if (skills.length === 0) {
+            document.getElementById('npcTrainingNoSkills').classList.remove('hidden');
+            document.getElementById('npcTrainingSkills').innerHTML = '';
+            return;
+        }
+
+        document.getElementById('npcTrainingNoSkills').classList.add('hidden');
+        const container = document.getElementById('npcTrainingSkills');
+        container.innerHTML = '';
+        
+        skills.forEach(skill => {
+            const skillDiv = document.createElement('div');
+            skillDiv.className = 'border border-gray-200 dark:border-gray-700 rounded-lg p-4';
+            
+            let html = `<h4 class="font-semibold text-lg mb-2">${escapeHtml(skill.name)}</h4>`;
+            html += `<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">${escapeHtml(skill.description || '')}</p>`;
+            
+            html += `<div class="grid grid-cols-2 gap-4 mb-3 text-sm">`;
+            html += `<div><strong>Категория:</strong> ${escapeHtml(skill.category || 'Общее')}</div>`;
+            html += `<div><strong>Текущий уровень:</strong> ${skill.current_level} / ${skill.max_level}</div>`;
+            html += `<div><strong>Требуемый уровень персонажа:</strong> ${skill.required_level || 1}</div>`;
+            if (skill.attribute_requirements) {
+                const reqs = Object.entries(skill.attribute_requirements).map(([attr, val]) => {
+                    const attrNames = {
+                        'strength': 'Сила',
+                        'agility': 'Ловкость',
+                        'intelligence': 'Интеллект'
+                    };
+                    return `${attrNames[attr] || attr}: ${val}`;
+                }).join(', ');
+                html += `<div><strong>Требования:</strong> ${reqs}</div>`;
+            }
+            html += `</div>`;
+            
+            if (skill.can_learn) {
+                html += `<button onclick="learnSkill(${skill.id})" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium">Изучить / Улучшить</button>`;
+            } else {
+                html += `<button disabled class="w-full px-4 py-2 bg-gray-400 text-white rounded cursor-not-allowed font-medium">Достигнут максимальный уровень</button>`;
+            }
+            
+            skillDiv.innerHTML = html;
+            container.appendChild(skillDiv);
+        });
+    }
+
+    // Изучить навык
+    async function learnSkill(skillId) {
+        // TODO: Реализовать изучение навыков
+        alert(`Изучение навыка (ID: ${skillId}) - будет реализовано позже`);
+    }
+
+    // Закрытие модального окна по клику вне его
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('npcInteractionModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeNpcInteractionModal();
+                }
+            });
+        }
+    });
 
     // Функция атаки на NPC
     function attackNpc(npcId, npcName) {
@@ -814,6 +1742,200 @@
         currentPickUpIsStackable = false;
     }
 
+    // Показать детали предмета торговца
+    async function showTradeItemDetailsFromMerchant(itemId) {
+        // Находим предмет в списке товаров торговца
+        const allItems = window.npcTradeAllItems || [];
+        const item = allItems.find(i => (i.item_id || i.id) === itemId);
+        
+        if (item) {
+            showTradeItemDetails(item);
+        } else {
+            alert('Предмет не найден');
+        }
+    }
+
+    // Показать детали предмета из инвентаря для продажи
+    async function showTradeItemDetailsFromInventory(itemInstanceId) {
+        try {
+            const response = await fetch(`/api/item-instances/${itemInstanceId}`);
+            const itemInstance = await response.json();
+
+            if (!response.ok) {
+                alert('Не удалось загрузить информацию о предмете');
+                return;
+            }
+
+            showTradeItemDetails(itemInstance.item);
+        } catch (error) {
+            console.error('Error loading item:', error);
+            alert('Произошла ошибка при загрузке информации о предмете');
+        }
+    }
+
+    // Показать детали предмета в торговле
+    function showTradeItemDetails(item) {
+        const modal = document.getElementById('tradeItemModal');
+        const title = document.getElementById('tradeItemModalTitle');
+        const content = document.getElementById('tradeItemModalContent');
+
+        title.textContent = item.name;
+
+        const rarityColors = {
+            'common': 'text-gray-600 dark:text-gray-400',
+            'uncommon': 'text-green-600 dark:text-green-400',
+            'rare': 'text-blue-600 dark:text-blue-400',
+            'epic': 'text-purple-600 dark:text-purple-400',
+            'legendary': 'text-orange-600 dark:text-orange-400',
+        };
+        const rarityColor = rarityColors[item.rarity] || rarityColors.common;
+        const rarityName = getRarityName(item.rarity);
+
+        let html = `
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">${escapeHtml(item.description || 'Нет описания')}</p>
+            <div class="space-y-2 text-sm border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div><strong>Тип:</strong> ${escapeHtml(item.type)}${item.subtype ? ' (' + escapeHtml(item.subtype) + ')' : ''}</div>
+                <div><strong>Редкость:</strong> <span class="${rarityColor} capitalize">${rarityName}</span></div>
+                <div><strong>Требуемый уровень:</strong> ${item.level_required || 1}</div>
+                ${item.value > 0 ? `<div><strong>Базовая стоимость:</strong> ${item.value} золота</div>` : ''}
+                ${item.weight > 0 ? `<div><strong>Вес:</strong> ${item.weight}</div>` : ''}
+                ${item.stackable ? `<div><strong>Стакуемый:</strong> Да${item.max_stack ? ' (макс. ' + item.max_stack + ')' : ''}</div>` : '<div><strong>Стакуемый:</strong> Нет</div>'}
+        `;
+
+        // Требования к использованию
+        if (item.requirements) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Требования:</strong></div>`;
+            if (item.requirements.level) {
+                html += `<div>Уровень: ${item.requirements.level}</div>`;
+            }
+            if (item.requirements.attributes) {
+                const attrNames = {
+                    'strength': 'Сила',
+                    'agility': 'Ловкость',
+                    'intelligence': 'Интеллект'
+                };
+                Object.entries(item.requirements.attributes).forEach(([attr, val]) => {
+                    html += `<div>${attrNames[attr] || attr}: ${val}</div>`;
+                });
+            }
+            if (item.requirements.skills) {
+                Object.entries(item.requirements.skills).forEach(([skill, level]) => {
+                    html += `<div>Навык ${skill}: ${level}</div>`;
+                });
+            }
+        }
+
+        // Специфичные данные предмета
+        if (item.weapon_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Характеристики оружия:</strong></div>`;
+            html += `<div>Урон: ${item.weapon_data.damage_min || 0}-${item.weapon_data.damage_max || 0}</div>`;
+            if (item.weapon_data.attack_speed) {
+                html += `<div>Скорость атаки: ${item.weapon_data.attack_speed}</div>`;
+            }
+            if (item.weapon_data.weapon_type) {
+                const weaponTypes = {
+                    'one_handed': 'Одноручное',
+                    'two_handed': 'Двуручное',
+                    'ranged': 'Дальнобойное'
+                };
+                html += `<div>Тип оружия: ${weaponTypes[item.weapon_data.weapon_type] || item.weapon_data.weapon_type}</div>`;
+            }
+            if (item.weapon_data.range) {
+                html += `<div>Дальность: ${item.weapon_data.range}</div>`;
+            }
+            if (item.weapon_data.durability_max) {
+                html += `<div>Максимальная прочность: ${item.weapon_data.durability_max}</div>`;
+            }
+        }
+
+        if (item.armor_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Характеристики брони:</strong></div>`;
+            html += `<div>Защита: ${item.armor_data.defense || 0}</div>`;
+            if (item.armor_data.magic_defense) {
+                html += `<div>Магическая защита: ${item.armor_data.magic_defense}</div>`;
+            }
+            if (item.armor_data.durability_max) {
+                html += `<div>Максимальная прочность: ${item.armor_data.durability_max}</div>`;
+            }
+        }
+
+        if (item.jewelry_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Характеристики бижутерии:</strong></div>`;
+            if (item.jewelry_data.bonuses) {
+                Object.entries(item.jewelry_data.bonuses).forEach(([stat, value]) => {
+                    const statNames = {
+                        'strength': 'Сила',
+                        'agility': 'Ловкость',
+                        'intelligence': 'Интеллект',
+                        'health': 'Здоровье',
+                        'mana': 'Мана'
+                    };
+                    html += `<div>${statNames[stat] || stat}: +${value}</div>`;
+                });
+            }
+        }
+
+        if (item.potion_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Эффект зелья:</strong></div>`;
+            const effectTypes = {
+                'health': 'Восстановление здоровья',
+                'mana': 'Восстановление маны',
+                'strength': 'Увеличение силы',
+                'agility': 'Увеличение ловкости',
+                'intelligence': 'Увеличение интеллекта'
+            };
+            html += `<div>Тип: ${effectTypes[item.potion_data.effect_type] || item.potion_data.effect_type || 'Неизвестно'}</div>`;
+            html += `<div>Сила: ${item.potion_data.effect_power || 0}</div>`;
+            if (item.potion_data.duration) {
+                html += `<div>Длительность: ${item.potion_data.duration} сек</div>`;
+            }
+        }
+
+        if (item.scroll_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Данные свитка:</strong></div>`;
+            html += `<div>Заклинание ID: ${item.scroll_data.spell_id || 'Неизвестно'}</div>`;
+            html += `<div>Одноразовый: ${item.scroll_data.is_consumable !== false ? 'Да' : 'Нет'}</div>`;
+        }
+
+        if (item.rune_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Данные руны:</strong></div>`;
+            html += `<div>Заклинание ID: ${item.rune_data.spell_id || 'Неизвестно'}</div>`;
+            html += `<div>Стоимость маны: ${item.rune_data.mana_cost_per_use || 0}</div>`;
+        }
+
+        if (item.resource_data) {
+            html += `<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"><strong>Данные ресурса:</strong></div>`;
+            if (item.resource_data.category) {
+                html += `<div>Категория: ${item.resource_data.category}</div>`;
+            }
+            if (item.resource_data.quality) {
+                html += `<div>Качество: ${item.resource_data.quality}</div>`;
+            }
+        }
+
+        html += `</div>`;
+
+        // Кнопка закрытия
+        html += `
+            <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                    onclick="closeTradeItemModal()"
+                    class="w-full px-4 py-2 border border-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                    Закрыть
+                </button>
+            </div>
+        `;
+
+        content.innerHTML = html;
+        modal.classList.remove('hidden');
+    }
+
+    // Закрыть модальное окно просмотра предмета в торговле
+    function closeTradeItemModal() {
+        document.getElementById('tradeItemModal').classList.add('hidden');
+    }
+
     // Установить количество "Все" для поднятия
     function setPickUpQuantity(quantity) {
         const input = document.getElementById('pickUpQuantity');
@@ -900,6 +2022,16 @@
             closeGroundItemModal();
         }
     });
+
+    // Закрытие модального окна торговли по клику вне его
+    const tradeItemModal = document.getElementById('tradeItemModal');
+    if (tradeItemModal) {
+        tradeItemModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTradeItemModal();
+            }
+        });
+    }
 
     // Загружаем локацию при загрузке страницы, если есть активная сессия
     @if($session)

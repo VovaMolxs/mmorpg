@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AcceptQuestRequest;
 use App\Http\Requests\CompleteQuestRequest;
+use App\Models\ActiveNpc;
 use App\Models\Character;
 use App\Models\CharacterQuest;
 use App\Models\ItemInstance;
@@ -45,13 +46,30 @@ class QuestController extends Controller
                 ], 403);
             }
 
-            // Проверка, находится ли персонаж рядом с NPC, который выдает квест
+            // Проверка: NPC должен быть заспавнен в той же локации, что и персонаж
             if ($quest->quest_giver_npc_id !== null) {
                 $questGiver = $quest->questGiver;
-                if ($questGiver && $questGiver->location_id !== $character->location_id) {
-                    return response()->json([
-                        'error' => 'Вы должны находиться рядом с NPC, который выдает этот квест',
-                    ], 403);
+                if ($questGiver) {
+                    $activeNpc = ActiveNpc::where('npc_id', $questGiver->id)
+                        ->where('is_active', true)
+                        ->where('location_id', $character->location_id)
+                        ->first();
+
+                    if (! $activeNpc) {
+                        $anyActiveNpc = ActiveNpc::where('npc_id', $questGiver->id)
+                            ->where('is_active', true)
+                            ->first();
+
+                        if (! $anyActiveNpc) {
+                            return response()->json([
+                                'error' => 'NPC, который выдает этот квест, не заспавнен в мире',
+                            ], 403);
+                        }
+
+                        return response()->json([
+                            'error' => 'Вы должны находиться рядом с NPC, который выдает этот квест. Вы находитесь в локации ID: '.$character->location_id.', а NPC в локации ID: '.$anyActiveNpc->location_id,
+                        ], 403);
+                    }
                 }
             }
 
@@ -137,14 +155,31 @@ class QuestController extends Controller
                 ], 403);
             }
 
-            // Проверка, находится ли персонаж рядом с NPC, которому сдается квест
+            // Проверка: NPC должен быть заспавнен в той же локации, что и персонаж
             $quest = $characterQuest->quest;
             if ($quest->turn_in_npc_id !== null) {
                 $turnInNpc = $quest->turnInNpc;
-                if ($turnInNpc && $turnInNpc->location_id !== $character->location_id) {
-                    return response()->json([
-                        'error' => 'Вы должны находиться рядом с NPC, которому нужно сдать квест',
-                    ], 403);
+                if ($turnInNpc) {
+                    $activeNpc = ActiveNpc::where('npc_id', $turnInNpc->id)
+                        ->where('is_active', true)
+                        ->where('location_id', $character->location_id)
+                        ->first();
+
+                    if (! $activeNpc) {
+                        $anyActiveNpc = ActiveNpc::where('npc_id', $turnInNpc->id)
+                            ->where('is_active', true)
+                            ->first();
+
+                        if (! $anyActiveNpc) {
+                            return response()->json([
+                                'error' => 'NPC, которому нужно сдать квест, не заспавнен в мире',
+                            ], 403);
+                        }
+
+                        return response()->json([
+                            'error' => 'Вы должны находиться рядом с NPC, которому нужно сдать квест. Вы находитесь в локации ID: '.$character->location_id.', а NPC в локации ID: '.$anyActiveNpc->location_id,
+                        ], 403);
+                    }
                 }
             }
 

@@ -860,4 +860,163 @@ class Character extends Model
 
         return (int) round($totalRate);
     }
+
+    /**
+     * Торговые транзакции персонажа.
+     */
+    public function tradeTransactions(): HasMany
+    {
+        return $this->hasMany(TradeTransaction::class);
+    }
+
+    /**
+     * Получить ID предмета золота (золотая монета).
+     */
+    private function getGoldItemId(): int
+    {
+        // ID золотой монеты из базы данных
+        // Можно получить динамически или использовать константу
+        static $goldItemId = null;
+
+        if ($goldItemId === null) {
+            $goldItem = Item::where('type', 'currency')
+                ->where('subtype', 'coin')
+                ->where('name', 'LIKE', '%золот%монет%')
+                ->first();
+
+            $goldItemId = $goldItem ? $goldItem->id : 80; // Fallback на известный ID
+        }
+
+        return $goldItemId;
+    }
+
+    /**
+     * Получить количество золота у персонажа из инвентаря.
+     */
+    public function getGold(): int
+    {
+        $goldItemId = $this->getGoldItemId();
+        $goldItem = $this->inventoryItems()
+            ->where('item_id', $goldItemId)
+            ->first();
+
+        return $goldItem ? $goldItem->quantity : 0;
+    }
+
+    /**
+     * Добавить золото персонажу.
+     */
+    public function addGold(int $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $goldItemId = $this->getGoldItemId();
+        $goldItem = $this->inventoryItems()
+            ->where('item_id', $goldItemId)
+            ->first();
+
+        if ($goldItem) {
+            $goldItem->quantity += $amount;
+            $goldItem->save();
+        } else {
+            ItemInstance::create([
+                'item_id' => $goldItemId,
+                'owner_id' => $this->id,
+                'location_type' => 'inventory',
+                'location_id' => $this->id,
+                'quantity' => $amount,
+            ]);
+        }
+    }
+
+    /**
+     * Потратить золото персонажа.
+     *
+     * @return bool Возвращает true, если золота достаточно и операция успешна
+     */
+    public function spendGold(int $amount): bool
+    {
+        if ($amount <= 0) {
+            return true;
+        }
+
+        $goldItemId = $this->getGoldItemId();
+        $goldItem = $this->inventoryItems()
+            ->where('item_id', $goldItemId)
+            ->first();
+
+        if (! $goldItem || $goldItem->quantity < $amount) {
+            return false;
+        }
+
+        $goldItem->quantity -= $amount;
+
+        if ($goldItem->quantity <= 0) {
+            $goldItem->delete();
+        } else {
+            $goldItem->save();
+        }
+
+        return true;
+    }
+
+    /**
+     * Проверить, достаточно ли золота у персонажа.
+     */
+    public function hasEnoughGold(int $amount): bool
+    {
+        return $this->getGold() >= $amount;
+    }
+
+    /**
+     * Проверить, может ли персонаж добавить предметы в инвентарь.
+     *
+     * @param  \App\Models\Item  $item  Предмет для добавления
+     * @param  int  $quantity  Количество предметов
+     * @return array ['can_add' => bool, 'reason' => string|null]
+     */
+    public function canAddItemsToInventory(Item $item, int $quantity): array
+    {
+        // Максимальное количество слотов в инвентаре (можно сделать настраиваемым)
+        $maxInventorySlots = 50;
+
+        // Если предмет стакуемый, проверяем существующие стаки
+        if ($item->stackable) {
+            $existingStack = $this->inventoryItems()
+                ->where('item_id', $item->id)
+                ->first();
+
+            if ($existingStack) {
+                // Есть существующий стак, проверяем, можно ли добавить к нему
+                $availableSpace = $item->max_stack - $existingStack->quantity;
+                if ($availableSpace >= $quantity) {
+                    return ['can_add' => true, 'reason' => null];
+                }
+
+                // Часть можно добавить к существующему стаку, остальное - новые слоты
+                $remainingQuantity = $quantity - $availableSpace;
+                $neededSlots = (int) ceil($remainingQuantity / $item->max_stack);
+            } else {
+                // Новый стак
+                $neededSlots = (int) ceil($quantity / $item->max_stack);
+            }
+        } else {
+            // Нестакуемый предмет - каждый экземпляр занимает отдельный слот
+            $neededSlots = $quantity;
+        }
+
+        // Подсчитываем занятые слоты (каждый ItemInstance = 1 слот)
+        $occupiedSlots = $this->inventoryItems()->count();
+
+        if ($occupiedSlots + $neededSlots > $maxInventorySlots) {
+            return [
+                'can_add' => false,
+                'reason' => "Недостаточно места в инвентаре. Занято: {$occupiedSlots}/{$maxInventorySlots}, требуется: {$neededSlots}",
+            ];
+        }
+
+        return ['can_add' => true, 'reason' => null];
+    }
 }

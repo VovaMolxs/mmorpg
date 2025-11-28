@@ -102,6 +102,9 @@ class CharacterController extends Controller
 
                 $character->save();
 
+                // Добавляем начальное золото (100 золотых монет)
+                $character->addGold(100);
+
                 return $character;
             });
 

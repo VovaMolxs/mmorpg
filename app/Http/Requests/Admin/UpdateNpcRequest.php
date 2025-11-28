@@ -34,6 +34,8 @@ class UpdateNpcRequest extends FormRequest
             'faction_id' => ['nullable', 'integer'],
             'ai_behavior' => ['sometimes', 'required', 'string', Rule::in(['passive', 'neutral', 'aggressive'])],
             'respawn_time' => ['nullable', 'integer', 'min:1', 'max:1440'],
+            'merchant_buy_types' => ['nullable', 'array'],
+            'merchant_buy_types.*' => ['string', Rule::in(['weapon', 'armor', 'jewelry', 'potion', 'resource', 'rune', 'scroll'])],
 
             // Статистика NPC
             'stats.level' => ['sometimes', 'required', 'integer', 'min:1', 'max:100'],
