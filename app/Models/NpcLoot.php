@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class NpcLoot extends Model
 {
+    protected $table = 'npc_loot';
+
     protected $fillable = [
         'npc_id',
         'item_id',

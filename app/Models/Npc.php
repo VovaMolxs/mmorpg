@@ -21,6 +21,7 @@ class Npc extends Model
         'faction_id',
         'ai_behavior',
         'respawn_time',
+        'merchant_buy_types',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class Npc extends Model
             'is_quest_giver' => 'boolean',
             'is_hostile' => 'boolean',
             'respawn_time' => 'integer',
+            'merchant_buy_types' => 'array',
         ];
     }
 
@@ -177,5 +179,38 @@ class Npc extends Model
     public function questsTurnedIn(): HasMany
     {
         return $this->hasMany(Quest::class, 'turn_in_npc_id');
+    }
+
+    /**
+     * Ассортимент торговца.
+     */
+    public function merchantInventory(): HasMany
+    {
+        return $this->hasMany(MerchantInventory::class);
+    }
+
+    /**
+     * Торговые транзакции с этим NPC.
+     */
+    public function tradeTransactions(): HasMany
+    {
+        return $this->hasMany(TradeTransaction::class);
+    }
+
+    /**
+     * Проверить, покупает ли торговец предметы указанного типа.
+     */
+    public function canBuyItemType(string $itemType): bool
+    {
+        if (! $this->is_merchant) {
+            return false;
+        }
+
+        // Если список типов не указан, торговец покупает все типы
+        if (empty($this->merchant_buy_types)) {
+            return true;
+        }
+
+        return in_array($itemType, $this->merchant_buy_types, true);
     }
 }

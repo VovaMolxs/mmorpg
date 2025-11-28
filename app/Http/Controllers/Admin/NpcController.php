@@ -141,6 +141,7 @@ class NpcController extends Controller
                     'faction_id' => $validated['faction_id'] ?? null,
                     'ai_behavior' => $validated['ai_behavior'],
                     'respawn_time' => $validated['respawn_time'] ?? 5,
+                    'merchant_buy_types' => $validated['merchant_buy_types'] ?? null,
                 ]);
 
                 // Создаем статистику
@@ -285,7 +286,7 @@ class NpcController extends Controller
                 $validated = $request->validated();
 
                 // Обновляем NPC
-                $npc->update([
+                $updateData = [
                     'name' => $validated['name'] ?? $npc->name,
                     'type' => $validated['type'] ?? $npc->type,
                     'location_id' => $validated['location_id'] ?? $npc->location_id,
@@ -297,7 +298,14 @@ class NpcController extends Controller
                     'faction_id' => $validated['faction_id'] ?? $npc->faction_id,
                     'ai_behavior' => $validated['ai_behavior'] ?? $npc->ai_behavior,
                     'respawn_time' => $validated['respawn_time'] ?? $npc->respawn_time,
-                ]);
+                ];
+
+                // Обновляем merchant_buy_types только если оно передано
+                if (isset($validated['merchant_buy_types'])) {
+                    $updateData['merchant_buy_types'] = empty($validated['merchant_buy_types']) ? null : $validated['merchant_buy_types'];
+                }
+
+                $npc->update($updateData);
 
                 // Обновляем статистику
                 if (isset($validated['stats'])) {

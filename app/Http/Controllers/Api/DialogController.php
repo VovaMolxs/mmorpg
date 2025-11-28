@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AnswerDialogRequest;
 use App\Http\Requests\StartDialogRequest;
+use App\Models\ActiveNpc;
 use App\Models\Character;
 use App\Models\CharacterQuest;
 use App\Models\Dialog;
@@ -39,10 +40,26 @@ class DialogController extends Controller
                 ], 404);
             }
 
-            // Проверка, находится ли NPC в той же локации, что и персонаж
-            if ($npc->location_id !== $character->location_id) {
+            // Проверка: NPC должен быть заспавнен в той же локации, что и персонаж
+            $activeNpc = ActiveNpc::where('npc_id', $npcId)
+                ->where('is_active', true)
+                ->where('location_id', $character->location_id)
+                ->first();
+
+            if (! $activeNpc) {
+                // Проверяем, существует ли активный спавн этого NPC вообще
+                $anyActiveNpc = ActiveNpc::where('npc_id', $npcId)
+                    ->where('is_active', true)
+                    ->first();
+
+                if (! $anyActiveNpc) {
+                    return response()->json([
+                        'error' => 'NPC не заспавнен в мире',
+                    ], 403);
+                }
+
                 return response()->json([
-                    'error' => 'NPC не находится в вашей локации',
+                    'error' => 'NPC не находится в вашей локации. Вы находитесь в локации ID: '.$character->location_id.', а NPC в локации ID: '.$anyActiveNpc->location_id,
                 ], 403);
             }
 

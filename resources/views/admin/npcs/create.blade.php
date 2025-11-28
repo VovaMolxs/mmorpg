@@ -173,6 +173,42 @@
                     <label for="is_hostile" class="text-sm">Враждебный</label>
                 </div>
             </div>
+
+            @php
+                $itemTypes = [
+                    'weapon' => 'Оружие',
+                    'armor' => 'Броня',
+                    'jewelry' => 'Бижутерия',
+                    'potion' => 'Зелья',
+                    'resource' => 'Ресурсы',
+                    'rune' => 'Руны',
+                    'scroll' => 'Свитки',
+                ];
+                $selectedTypes = old('merchant_buy_types', []);
+            @endphp
+
+            <div id="merchant-buy-types-section" style="display: {{ old('is_merchant') ? 'block' : 'none' }};">
+                <label class="block text-sm font-medium mb-2">Типы покупаемых предметов</label>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Оставьте пустым, чтобы торговец покупал все типы предметов</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    @foreach($itemTypes as $typeKey => $typeLabel)
+                        <div class="flex items-center">
+                            <input
+                                type="checkbox"
+                                id="merchant_buy_types_{{ $typeKey }}"
+                                name="merchant_buy_types[]"
+                                value="{{ $typeKey }}"
+                                {{ in_array($typeKey, $selectedTypes) ? 'checked' : '' }}
+                                class="mr-2"
+                            >
+                            <label for="merchant_buy_types_{{ $typeKey }}" class="text-sm">{{ $typeLabel }}</label>
+                        </div>
+                    @endforeach
+                </div>
+                @error('merchant_buy_types')
+                    <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                @enderror
+            </div>
         </div>
 
         <!-- Статистика -->
@@ -585,6 +621,21 @@ function removeEquipmentRow(index) {
         row.remove();
     }
 }
+
+// Показать/скрыть поле типов покупаемых предметов в зависимости от чекбокса торговца
+document.addEventListener('DOMContentLoaded', function() {
+    const merchantCheckbox = document.getElementById('is_merchant');
+    const buyTypesSection = document.getElementById('merchant-buy-types-section');
+    
+    if (merchantCheckbox && buyTypesSection) {
+        function toggleBuyTypesSection() {
+            buyTypesSection.style.display = merchantCheckbox.checked ? 'block' : 'none';
+        }
+        
+        merchantCheckbox.addEventListener('change', toggleBuyTypesSection);
+        toggleBuyTypesSection(); // Инициализация при загрузке страницы
+    }
+});
 </script>
 @endsection
 

@@ -115,6 +115,17 @@ Route::middleware('auth')->group(function () {
             Route::post('complete', [\App\Http\Controllers\Api\QuestController::class, 'complete'])->name('complete');
             Route::get('active', [\App\Http\Controllers\Api\QuestController::class, 'active'])->name('active');
         });
+
+        // NPC routes (API)
+        Route::prefix('npcs')->name('npcs.')->group(function () {
+            Route::get('{npc}', [\App\Http\Controllers\Api\NpcController::class, 'show'])->name('show');
+        });
+
+        // Trade routes (API)
+        Route::prefix('trade')->name('trade.')->group(function () {
+            Route::post('buy', [\App\Http\Controllers\Api\TradeController::class, 'buy'])->name('buy');
+            Route::post('sell', [\App\Http\Controllers\Api\TradeController::class, 'sell'])->name('sell');
+        });
     });
 });
 
@@ -159,4 +170,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Quests management
     Route::resource('quests', \App\Http\Controllers\Admin\QuestController::class)->except(['show']);
+
+    // Merchant inventories management
+    Route::prefix('npcs/{npc}/merchant-inventories')->name('merchant-inventories.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'store'])->name('store');
+        Route::get('/{merchantInventory}/edit', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'edit'])->name('edit');
+        Route::put('/{merchantInventory}', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'update'])->name('update');
+        Route::delete('/{merchantInventory}', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'destroy'])->name('destroy');
+        Route::post('/{merchantInventory}/restock', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'restock'])->name('restock');
+    });
 });

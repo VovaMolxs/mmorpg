@@ -105,13 +105,23 @@
                             {{ $npc->stats?->level ?? '—' }}
                         </td>
                         <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
-                            <div class="flex gap-2">
-                                <a
-                                    href="{{ route('admin.npcs.edit', $npc) }}"
-                                    class="text-[#f53003] dark:text-[#FF4433] hover:underline"
-                                >
-                                    Редактировать
-                                </a>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex gap-2">
+                                    <a
+                                        href="{{ route('admin.npcs.edit', $npc) }}"
+                                        class="text-[#f53003] dark:text-[#FF4433] hover:underline"
+                                    >
+                                        Редактировать
+                                    </a>
+                                    @if($npc->is_merchant)
+                                        <a
+                                            href="{{ route('admin.merchant-inventories.index', $npc) }}"
+                                            class="text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                            Ассортимент
+                                        </a>
+                                    @endif
+                                </div>
                                 <form
                                     method="POST"
                                     action="{{ route('admin.npcs.destroy', $npc) }}"
