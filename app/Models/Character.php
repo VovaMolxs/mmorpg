@@ -870,6 +870,22 @@ class Character extends Model
     }
 
     /**
+     * Банковские ячейки персонажа.
+     */
+    public function bankStorages(): HasMany
+    {
+        return $this->hasMany(BankStorage::class);
+    }
+
+    /**
+     * Улучшения банковского хранилища персонажа.
+     */
+    public function bankStorageUpgrades(): HasMany
+    {
+        return $this->hasMany(BankStorageUpgrade::class);
+    }
+
+    /**
      * Получить ID предмета золота (золотая монета).
      */
     private function getGoldItemId(): int

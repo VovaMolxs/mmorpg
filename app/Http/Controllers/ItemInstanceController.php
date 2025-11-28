@@ -51,9 +51,26 @@ class ItemInstanceController extends Controller
 
         $items = $character->inventoryItems()
             ->with('item')
-            ->get();
+            ->get()
+            ->map(function ($itemInstance) {
+                $item = $itemInstance->item;
 
-        return response()->json($items);
+                return [
+                    'id' => $itemInstance->id,
+                    'item_id' => $item->id,
+                    'name' => $item->name,
+                    'description' => $item->description,
+                    'type' => $item->type,
+                    'subtype' => $item->subtype,
+                    'rarity' => $item->rarity,
+                    'quantity' => $itemInstance->quantity,
+                    'durability_current' => $itemInstance->durability_current,
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        return response()->json(['items' => $items]);
     }
 
     /**

@@ -198,6 +198,22 @@ class Npc extends Model
     }
 
     /**
+     * Банкир (если NPC является банкиром).
+     */
+    public function banker(): HasOne
+    {
+        return $this->hasOne(Banker::class);
+    }
+
+    /**
+     * Проверить, является ли NPC банкиром.
+     */
+    public function isBanker(): bool
+    {
+        return $this->banker !== null;
+    }
+
+    /**
      * Проверить, покупает ли торговец предметы указанного типа.
      */
     public function canBuyItemType(string $itemType): bool

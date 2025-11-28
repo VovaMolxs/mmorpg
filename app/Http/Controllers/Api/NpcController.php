@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActiveNpc;
+use App\Models\Banker;
+use App\Models\BankStorage;
+use App\Models\BankStorageUpgrade;
 use App\Models\Character;
 use App\Models\MerchantInventory;
 use App\Models\Npc;
@@ -252,6 +255,71 @@ class NpcController extends Controller
                     ->values();
             }
 
+            // Получаем информацию о банкире, если NPC является банкиром
+            $bankerInfo = null;
+            $banker = Banker::where('npc_id', $npcId)->first();
+            if ($banker) {
+                // Получаем информацию о хранилище персонажа
+                $storages = BankStorage::where('character_id', $character->id)
+                    ->where('banker_id', $banker->id)
+                    ->with(['itemInstance.item'])
+                    ->orderBy('slot_number')
+                    ->get();
+
+                $totalSlots = $banker->getTotalSlotsForCharacter($character);
+                $usedSlots = $storages->where('item_instance_id', '!=', null)->count();
+                $freeSlots = $totalSlots - $usedSlots;
+
+                // Получаем активные улучшения
+                $upgrades = BankStorageUpgrade::where('character_id', $character->id)
+                    ->where('banker_id', $banker->id)
+                    ->where(function ($query) {
+                        $query->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    })
+                    ->get();
+
+                $storageFee = $banker->calculateStorageFee($character, $usedSlots);
+
+                $bankerInfo = [
+                    'id' => $banker->id,
+                    'storage_slots' => $banker->storage_slots,
+                    'base_fee' => $banker->base_fee,
+                    'fee_per_slot' => $banker->fee_per_slot,
+                    'max_upgrade_slots' => $banker->max_upgrade_slots,
+                    'total_slots' => $totalSlots,
+                    'used_slots' => $usedSlots,
+                    'free_slots' => $freeSlots,
+                    'current_fee' => $storageFee,
+                    'storages' => $storages->map(function ($storage) {
+                        return [
+                            'id' => $storage->id,
+                            'slot_number' => $storage->slot_number,
+                            'item_instance' => $storage->itemInstance ? [
+                                'id' => $storage->itemInstance->id,
+                                'item' => [
+                                    'id' => $storage->itemInstance->item->id,
+                                    'name' => $storage->itemInstance->item->name,
+                                    'type' => $storage->itemInstance->item->type,
+                                ],
+                                'quantity' => $storage->itemInstance->quantity,
+                            ] : null,
+                            'is_locked' => $storage->is_locked,
+                        ];
+                    }),
+                    'upgrades' => $upgrades->map(function ($upgrade) {
+                        return [
+                            'id' => $upgrade->id,
+                            'additional_slots' => $upgrade->additional_slots,
+                            'purchase_cost' => $upgrade->purchase_cost,
+                            'purchased_at' => $upgrade->purchased_at->toIso8601String(),
+                            'expires_at' => $upgrade->expires_at?->toIso8601String(),
+                            'is_permanent' => $upgrade->expires_at === null,
+                        ];
+                    }),
+                ];
+            }
+
             return response()->json([
                 'success' => true,
                 'npc' => [
@@ -266,6 +334,7 @@ class NpcController extends Controller
                     'ai_behavior' => $npc->ai_behavior,
                     'faction_id' => $npc->faction_id,
                     'merchant_buy_types' => $npc->merchant_buy_types,
+                    'is_banker' => $banker !== null,
                     'stats' => $npc->stats ? [
                         'level' => $npc->stats->level,
                         'health_current' => $npc->stats->health_current,
@@ -282,6 +351,7 @@ class NpcController extends Controller
                 'quests_to_turn_in' => $questsToTurnIn,
                 'teachable_skills' => $teachableSkills,
                 'merchant_items' => $merchantItems,
+                'banker' => $bankerInfo,
                 'character' => [
                     'gold' => $character->getGold(),
                     'level' => $character->level,

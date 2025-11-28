@@ -126,6 +126,14 @@ Route::middleware('auth')->group(function () {
             Route::post('buy', [\App\Http\Controllers\Api\TradeController::class, 'buy'])->name('buy');
             Route::post('sell', [\App\Http\Controllers\Api\TradeController::class, 'sell'])->name('sell');
         });
+
+        // Bank routes (API)
+        Route::prefix('bank')->name('bank.')->group(function () {
+            Route::get('{banker}/storage', [\App\Http\Controllers\Api\BankController::class, 'getStorage'])->name('storage');
+            Route::post('deposit', [\App\Http\Controllers\Api\BankController::class, 'deposit'])->name('deposit');
+            Route::post('withdraw', [\App\Http\Controllers\Api\BankController::class, 'withdraw'])->name('withdraw');
+            Route::post('upgrade', [\App\Http\Controllers\Api\BankController::class, 'upgrade'])->name('upgrade');
+        });
     });
 });
 
@@ -180,5 +188,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::put('/{merchantInventory}', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'update'])->name('update');
         Route::delete('/{merchantInventory}', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'destroy'])->name('destroy');
         Route::post('/{merchantInventory}/restock', [\App\Http\Controllers\Admin\MerchantInventoryController::class, 'restock'])->name('restock');
+    });
+
+    // Bankers management
+    Route::resource('bankers', \App\Http\Controllers\Admin\BankerController::class)->except(['show']);
+
+    // Bank storages management
+    Route::prefix('bank-storages')->name('bank-storages.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\BankStorageController::class, 'index'])->name('index');
+        Route::get('/characters/{character}', [\App\Http\Controllers\Admin\BankStorageController::class, 'show'])->name('show');
+        Route::delete('/{bankStorage}', [\App\Http\Controllers\Admin\BankStorageController::class, 'destroy'])->name('destroy');
+        Route::post('/characters/{character}/clear', [\App\Http\Controllers\Admin\BankStorageController::class, 'clear'])->name('clear');
     });
 });

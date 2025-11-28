@@ -570,6 +570,8 @@
                 tab.style.display = 'none';
             } else if (tabName === 'quests' && !npc.is_quest_giver) {
                 tab.style.display = 'none';
+            } else if (tabName === 'bank' && !npc.is_banker) {
+                tab.style.display = 'none';
             } else {
                 tab.style.display = 'block';
             }
@@ -581,6 +583,7 @@
         populateNpcQuests(data);
         populateNpcTrade(data);
         populateNpcTraining(data);
+        populateNpcBank(data);
 
         // Показываем модальное окно и переключаемся на первую доступную вкладку
         modal.classList.remove('hidden');
@@ -614,6 +617,11 @@
             content.classList.add('hidden');
         });
         document.getElementById(`npcTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.remove('hidden');
+
+        // Если открывается вкладка банка, инициализируем подвкладку депозита
+        if (tabName === 'bank' && window.currentBankerData) {
+            switchBankSubTab('deposit');
+        }
     }
 
     // Заполнить вкладку "Обзор"
@@ -1419,6 +1427,438 @@
     async function learnSkill(skillId) {
         // TODO: Реализовать изучение навыков
         alert(`Изучение навыка (ID: ${skillId}) - будет реализовано позже`);
+    }
+
+    // Заполнить вкладку "Банк"
+    function populateNpcBank(data) {
+        const banker = data.banker;
+        
+        if (!banker) {
+            return;
+        }
+
+        // Обновляем информацию о хранилище
+        document.getElementById('npcBankPlayerGold').textContent = data.character.gold || 0;
+        document.getElementById('npcBankUsedSlots').textContent = banker.used_slots || 0;
+        document.getElementById('npcBankFreeSlots').textContent = banker.free_slots || 0;
+        document.getElementById('npcBankTotalSlots').textContent = banker.total_slots || 0;
+        document.getElementById('npcBankStorageFee').textContent = `${banker.current_fee || 0} золота`;
+
+        // Сохраняем данные банкира
+        window.currentBankerData = banker;
+
+        // Сбрасываем флаг загрузки инвентаря при обновлении данных банкира
+        // Инвентарь будет загружен при открытии подвкладки депозита
+        window.bankInventoryLoaded = false;
+
+        // Загружаем хранилище для изъятия, если открыта вкладка изъятия
+        const withdrawTabContent = document.getElementById('bankSubTabWithdrawContent');
+        if (withdrawTabContent && !withdrawTabContent.classList.contains('hidden')) {
+            renderBankStorage(banker.storages || []);
+        }
+
+        // Обновляем информацию об улучшениях
+        populateBankUpgrades(banker);
+    }
+
+    // Переключение подвкладок банка
+    function switchBankSubTab(subTab) {
+        const depositBtn = document.getElementById('bankSubTabDeposit');
+        const withdrawBtn = document.getElementById('bankSubTabWithdraw');
+        const upgradeBtn = document.getElementById('bankSubTabUpgrade');
+        
+        // Сбрасываем стили всех кнопок
+        [depositBtn, withdrawBtn, upgradeBtn].forEach(btn => {
+            btn.classList.remove('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            btn.classList.add('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+        });
+
+        // Скрываем все подвкладки
+        document.getElementById('bankSubTabDepositContent').classList.add('hidden');
+        document.getElementById('bankSubTabWithdrawContent').classList.add('hidden');
+        document.getElementById('bankSubTabUpgradeContent').classList.add('hidden');
+
+        if (subTab === 'deposit') {
+            depositBtn.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            depositBtn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            document.getElementById('bankSubTabDepositContent').classList.remove('hidden');
+            
+            // Проверяем, нужно ли загрузить инвентарь
+            const inventoryContainer = document.getElementById('npcBankDepositInventory');
+            const needsLoad = !window.bankInventoryLoaded || 
+                            !inventoryContainer || 
+                            inventoryContainer.innerHTML.includes('Загрузка') ||
+                            inventoryContainer.innerHTML.trim() === '';
+            
+            if (needsLoad) {
+                window.bankInventoryLoaded = false;
+                loadPlayerInventoryForDeposit();
+            }
+        } else if (subTab === 'withdraw') {
+            withdrawBtn.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            withdrawBtn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            document.getElementById('bankSubTabWithdrawContent').classList.remove('hidden');
+            
+            if (window.currentBankerData) {
+                renderBankStorage(window.currentBankerData.storages || []);
+            }
+        } else if (subTab === 'upgrade') {
+            upgradeBtn.classList.add('border-blue-600', 'text-blue-600', 'dark:text-blue-400', 'font-medium');
+            upgradeBtn.classList.remove('border-transparent', 'text-gray-600', 'dark:text-gray-400');
+            document.getElementById('bankSubTabUpgradeContent').classList.remove('hidden');
+            
+            if (window.currentBankerData) {
+                populateBankUpgrades(window.currentBankerData);
+            }
+        }
+    }
+
+    // Загрузить инвентарь игрока для депозита
+    async function loadPlayerInventoryForDeposit() {
+        const container = document.getElementById('npcBankDepositInventory');
+        if (!container) {
+            console.error('Bank deposit inventory container not found');
+            return;
+        }
+
+        // Показываем индикатор загрузки
+        container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">Загрузка инвентаря...</p>';
+
+        try {
+            const response = await fetch(`{{ route('api.characters.inventory', ['character' => $character->id]) }}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                window.bankInventoryLoaded = true;
+                renderPlayerInventoryForDeposit(data.items || []);
+            } else {
+                window.bankInventoryLoaded = false;
+                container.innerHTML = 
+                    '<p class="text-center py-8 text-red-500">Ошибка загрузки инвентаря: ' + (data.error || 'Неизвестная ошибка') + '</p>';
+            }
+        } catch (error) {
+            window.bankInventoryLoaded = false;
+            console.error('Error loading inventory for deposit:', error);
+            container.innerHTML = 
+                '<p class="text-center py-8 text-red-500">Ошибка загрузки инвентаря: ' + error.message + '</p>';
+        }
+    }
+
+    // Отобразить инвентарь для депозита
+    function renderPlayerInventoryForDeposit(items) {
+        const container = document.getElementById('npcBankDepositInventory');
+        
+        if (!items || items.length === 0) {
+            container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">Инвентарь пуст</p>';
+            return;
+        }
+
+        container.innerHTML = items.map(item => {
+            const rarityColors = {
+                'common': 'text-gray-600 dark:text-gray-400',
+                'uncommon': 'text-green-600 dark:text-green-400',
+                'rare': 'text-blue-600 dark:text-blue-400',
+                'epic': 'text-purple-600 dark:text-purple-400',
+                'legendary': 'text-orange-600 dark:text-orange-400',
+            };
+            const rarityColor = rarityColors[item.rarity] || rarityColors.common;
+            const quantityHtml = item.quantity > 1 ? ` x${item.quantity}` : '';
+
+            return `
+                <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex justify-between items-center">
+                    <div class="flex-1">
+                        <h4 class="font-semibold ${rarityColor}">${escapeHtml(item.name)}${quantityHtml}</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">${escapeHtml(item.description || '')}</p>
+                    </div>
+                    <button
+                        onclick="depositItem(${item.id}, ${item.quantity || 1})"
+                        class="ml-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                    >
+                        Депозит
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Депозит предмета в банк
+    async function depositItem(itemInstanceId, maxQuantity = 1) {
+        try {
+            if (!window.currentBankerData) {
+                alert('Ошибка: данные банкира не загружены');
+                return;
+            }
+
+            let quantity = maxQuantity;
+            
+            if (maxQuantity > 1) {
+                const input = prompt(`Сколько предметов поместить в банк? (доступно: ${maxQuantity})`, maxQuantity.toString());
+                if (input === null) return;
+                quantity = parseInt(input);
+                if (isNaN(quantity) || quantity < 1 || quantity > maxQuantity) {
+                    alert('Укажите корректное количество (от 1 до ' + maxQuantity + ')');
+                    return;
+                }
+            }
+
+            const response = await fetch('{{ route("api.bank.deposit") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    banker_id: window.currentBankerData.id,
+                    item_instance_id: itemInstanceId,
+                    quantity: quantity
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(`Предмет успешно помещен в банк! Плата за хранение: ${data.storage_fee || 0} золота`);
+                
+                // Обновляем данные
+                await refreshBankData();
+            } else {
+                alert(data.error || 'Ошибка при депозите предмета');
+            }
+        } catch (error) {
+            console.error('Error depositing item:', error);
+            alert('Произошла ошибка при депозите предмета');
+        }
+    }
+
+    // Отобразить хранилище банка
+    function renderBankStorage(storages) {
+        const container = document.getElementById('npcBankStorageSlots');
+        
+        if (!storages || storages.length === 0) {
+            container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400 col-span-full">Хранилище пусто</p>';
+            return;
+        }
+
+        // Создаем сетку слотов
+        const maxSlot = Math.max(...storages.map(s => s.slot_number || 0), 0);
+        const slots = Array.from({ length: Math.max(maxSlot, 20) }, (_, i) => {
+            const slotNumber = i + 1;
+            const storage = storages.find(s => s.slot_number === slotNumber);
+            return storage || { slot_number: slotNumber, item_instance: null, is_locked: false };
+        });
+
+        container.innerHTML = slots.map(storage => {
+            if (storage.item_instance) {
+                const item = storage.item_instance.item;
+                return `
+                    <div class="border ${storage.is_locked ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'border-gray-300 dark:border-gray-700'} rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">#${storage.slot_number}</div>
+                        <div class="text-xs font-medium mb-1">${escapeHtml(item.name)}</div>
+                        <div class="text-xs text-gray-600 dark:text-gray-400 mb-2">x${storage.item_instance.quantity}</div>
+                        ${storage.is_locked ? '<div class="text-xs text-yellow-600 dark:text-yellow-400 mb-2">Заблокировано</div>' : ''}
+                        ${!storage.is_locked ? `<button onclick="withdrawItem(${storage.id})" class="w-full text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">Изъять</button>` : ''}
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="border border-gray-300 dark:border-gray-700 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 dark:text-gray-400">#${storage.slot_number}</div>
+                        <div class="text-xs text-gray-400 mt-2">Пусто</div>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+
+    // Изъять предмет из банка
+    async function withdrawItem(storageId) {
+        try {
+            if (!window.currentBankerData) {
+                alert('Ошибка: данные банкира не загружены');
+                return;
+            }
+
+            const storage = (window.currentBankerData.storages || []).find(s => s.id === storageId);
+            if (!storage || !storage.item_instance) {
+                alert('Предмет не найден');
+                return;
+            }
+
+            let quantity = storage.item_instance.quantity;
+            if (quantity > 1) {
+                const input = prompt(`Сколько предметов изъять? (доступно: ${quantity})`, quantity.toString());
+                if (input === null) return;
+                quantity = parseInt(input);
+                if (isNaN(quantity) || quantity < 1 || quantity > storage.item_instance.quantity) {
+                    alert('Укажите корректное количество (от 1 до ' + storage.item_instance.quantity + ')');
+                    return;
+                }
+            }
+
+            const response = await fetch('{{ route("api.bank.withdraw") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    banker_id: window.currentBankerData.id,
+                    storage_id: storageId,
+                    quantity: quantity
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(`Предмет успешно изъят из банка!`);
+                
+                // Обновляем данные
+                await refreshBankData();
+            } else {
+                alert(data.error || 'Ошибка при изъятии предмета');
+            }
+        } catch (error) {
+            console.error('Error withdrawing item:', error);
+            alert('Произошла ошибка при изъятии предмета');
+        }
+    }
+
+    // Заполнить информацию об улучшениях
+    function populateBankUpgrades(banker) {
+        const container = document.getElementById('npcBankUpgradesInfo');
+        const upgrades = banker.upgrades || [];
+        
+        if (upgrades.length === 0) {
+            container.innerHTML = '<p class="text-gray-600 dark:text-gray-400">У вас нет активных улучшений</p>';
+        } else {
+            container.innerHTML = upgrades.map(upgrade => {
+                const expiresText = upgrade.is_permanent 
+                    ? 'Постоянное' 
+                    : `Истекает: ${new Date(upgrade.expires_at).toLocaleDateString()}`;
+                return `
+                    <div class="flex justify-between items-center p-2 bg-white dark:bg-gray-700 rounded">
+                        <span>+${upgrade.additional_slots} слотов</span>
+                        <span class="text-xs text-gray-500">${expiresText}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Рассчитать стоимость улучшения
+    function calculateUpgradeCost() {
+        const slots = parseInt(document.getElementById('bankUpgradeSlots').value) || 1;
+        const baseCost = 1000; // Базовая стоимость за слот
+        const totalCost = baseCost * slots;
+        
+        document.getElementById('bankUpgradeCost').innerHTML = 
+            `<strong>Стоимость улучшения: ${totalCost} золота</strong>`;
+    }
+
+    // Купить улучшение хранилища
+    async function purchaseBankUpgrade() {
+        try {
+            if (!window.currentBankerData) {
+                alert('Ошибка: данные банкира не загружены');
+                return;
+            }
+
+            const slots = parseInt(document.getElementById('bankUpgradeSlots').value) || 1;
+            const baseCost = 1000;
+            const totalCost = baseCost * slots;
+
+            if (!confirm(`Купить ${slots} дополнительных слотов за ${totalCost} золота?`)) {
+                return;
+            }
+
+            const response = await fetch('{{ route("api.bank.upgrade") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    banker_id: window.currentBankerData.id,
+                    additional_slots: slots
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                alert(`Улучшение успешно приобретено!`);
+                
+                // Обновляем данные
+                await refreshBankData();
+            } else {
+                alert(data.error || 'Ошибка при покупке улучшения');
+            }
+        } catch (error) {
+            console.error('Error purchasing upgrade:', error);
+            alert('Произошла ошибка при покупке улучшения');
+        }
+    }
+
+    // Обновить данные банка
+    async function refreshBankData() {
+        try {
+            if (!currentNpcId) return;
+
+            const response = await fetch(`{{ route('api.npcs.show', ['npc' => '__NPC_ID__']) }}`.replace('__NPC_ID__', currentNpcId), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Обновляем данные банка
+                populateNpcBank(data);
+                
+                // Обновляем золото
+                if (data.character && data.character.gold !== undefined) {
+                    document.getElementById('npcBankPlayerGold').textContent = data.character.gold;
+                }
+
+                // Обновляем текущие данные
+                if (currentNpcData) {
+                    currentNpcData.character = data.character;
+                    currentNpcData.banker = data.banker;
+                }
+                window.currentBankerData = data.banker;
+
+                // Перезагружаем инвентарь для депозита
+                window.bankInventoryLoaded = false;
+                if (document.getElementById('bankSubTabDepositContent') && 
+                    !document.getElementById('bankSubTabDepositContent').classList.contains('hidden')) {
+                    await loadPlayerInventoryForDeposit();
+                }
+
+                // Обновляем хранилище для изъятия
+                if (document.getElementById('bankSubTabWithdrawContent') && 
+                    !document.getElementById('bankSubTabWithdrawContent').classList.contains('hidden')) {
+                    renderBankStorage(data.banker?.storages || []);
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing bank data:', error);
+        }
     }
 
     // Закрытие модального окна по клику вне его

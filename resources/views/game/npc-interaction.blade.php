@@ -33,6 +33,9 @@
                 <button onclick="switchNpcTab('training')" class="npc-tab px-6 py-3 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 whitespace-nowrap" data-tab="training">
                     Обучение
                 </button>
+                <button onclick="switchNpcTab('bank')" class="npc-tab px-6 py-3 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 whitespace-nowrap" data-tab="bank">
+                    Банк
+                </button>
             </div>
         </div>
 
@@ -258,6 +261,121 @@
                     <!-- Нет навыков -->
                     <div id="npcTrainingNoSkills" class="text-center py-8 text-gray-500 dark:text-gray-400">
                         Нет доступных навыков для обучения
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка: Банк -->
+            <div id="npcTabBank" class="npc-tab-content hidden">
+                <div class="space-y-6">
+                    <!-- Информация о хранилище -->
+                    <div id="npcBankInfo" class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Ваше золото:</span>
+                            <span id="npcBankPlayerGold" class="text-xl font-bold text-yellow-600 dark:text-yellow-400">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Слотов занято:</span>
+                            <span id="npcBankUsedSlots" class="text-lg font-semibold">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Свободных слотов:</span>
+                            <span id="npcBankFreeSlots" class="text-lg font-semibold text-green-600 dark:text-green-400">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Всего слотов:</span>
+                            <span id="npcBankTotalSlots" class="text-lg font-semibold">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Плата за хранение:</span>
+                            <span id="npcBankStorageFee" class="text-lg font-semibold">0 золота</span>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладки Депозит/Изъятие/Улучшение -->
+                    <div class="border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex">
+                            <button
+                                onclick="switchBankSubTab('deposit')"
+                                id="bankSubTabDeposit"
+                                class="px-6 py-3 border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 font-medium"
+                            >
+                                Депозит
+                            </button>
+                            <button
+                                onclick="switchBankSubTab('withdraw')"
+                                id="bankSubTabWithdraw"
+                                class="px-6 py-3 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            >
+                                Изъятие
+                            </button>
+                            <button
+                                onclick="switchBankSubTab('upgrade')"
+                                id="bankSubTabUpgrade"
+                                class="px-6 py-3 border-b-2 border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            >
+                                Улучшение
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Депозит -->
+                    <div id="bankSubTabDepositContent" class="bank-subtab-content">
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Выберите предмет из инвентаря для депозита:</p>
+                            <div id="npcBankDepositInventory" class="space-y-3 max-h-96 overflow-y-auto">
+                                <p class="text-center py-8 text-gray-500 dark:text-gray-400">Загрузка инвентаря...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Изъятие -->
+                    <div id="bankSubTabWithdrawContent" class="bank-subtab-content hidden">
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Ваше хранилище:</p>
+                            <div id="npcBankStorageSlots" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                                <p class="text-center py-8 text-gray-500 dark:text-gray-400 col-span-full">Загрузка хранилища...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Подвкладка: Улучшение -->
+                    <div id="bankSubTabUpgradeContent" class="bank-subtab-content hidden">
+                        <div class="space-y-4">
+                            <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                                <h3 class="font-semibold mb-2">Информация об улучшениях</h3>
+                                <div id="npcBankUpgradesInfo" class="space-y-2 text-sm">
+                                    <p class="text-gray-600 dark:text-gray-400">Загрузка...</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="bankUpgradeSlots" class="block text-sm font-medium mb-2">Количество дополнительных слотов:</label>
+                                <div class="flex gap-2">
+                                    <input
+                                        type="number"
+                                        id="bankUpgradeSlots"
+                                        min="1"
+                                        max="50"
+                                        value="10"
+                                        class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-[#1C1C1A] text-gray-900 dark:text-gray-100"
+                                    />
+                                    <button
+                                        onclick="calculateUpgradeCost()"
+                                        class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                                    >
+                                        Рассчитать
+                                    </button>
+                                </div>
+                                <div id="bankUpgradeCost" class="mt-2 text-sm text-gray-600 dark:text-gray-400"></div>
+                                <button
+                                    onclick="purchaseBankUpgrade()"
+                                    id="bankUpgradeButton"
+                                    class="w-full mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                                >
+                                    Купить улучшение
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

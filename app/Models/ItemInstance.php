@@ -81,6 +81,19 @@ class ItemInstance extends Model
     }
 
     /**
+     * Проверить, находится ли предмет в банке.
+     */
+    public function isInBank(): bool
+    {
+        // Предмет находится в банке, если location_type = 'container' и существует BankStorage с таким location_id
+        if ($this->location_type !== 'container' || ! $this->location_id) {
+            return false;
+        }
+
+        return BankStorage::where('id', $this->location_id)->exists();
+    }
+
+    /**
      * Проверить, является ли предмет квестовым (не исчезает).
      */
     public function isQuestItem(): bool

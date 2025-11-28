@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             WorldSeeder::class,
             ItemsSeeder::class,
             NeutralNpcsSeeder::class,
+            BankerSeeder::class,
         ]);
     }
 }
