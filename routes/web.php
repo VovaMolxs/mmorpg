@@ -165,6 +165,20 @@ Route::middleware('auth')->group(function () {
 
         Route::prefix('location')->name('location.')->group(function () {
             Route::get('{id}/resurrection-stones', [\App\Http\Controllers\Api\ResurrectionStoneController::class, 'getStonesInLocation'])->name('resurrection-stones');
+            Route::get('{id}/monsters', [\App\Http\Controllers\Api\MonsterController::class, 'locationMonsters'])->name('monsters');
+        });
+
+        // Monster routes (API)
+        Route::prefix('monsters')->name('monsters.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\MonsterController::class, 'index'])->name('index');
+            Route::get('{monster}', [\App\Http\Controllers\Api\MonsterController::class, 'show'])->name('show');
+        });
+
+        // Monster combat routes (API)
+        Route::prefix('monster')->name('monster.')->group(function () {
+            Route::post('{monster}/attack', [\App\Http\Controllers\Api\MonsterCombatController::class, 'attack'])->name('attack');
+            Route::get('{monster}/skills', [\App\Http\Controllers\Api\MonsterCombatController::class, 'skills'])->name('skills');
+            Route::post('{monster}/loot', [\App\Http\Controllers\Api\MonsterCombatController::class, 'loot'])->name('loot');
         });
     });
 });
@@ -239,4 +253,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Resurrection stones management
     Route::resource('resurrection-stones', \App\Http\Controllers\Admin\ResurrectionStoneController::class)->except(['show']);
+
+    // Monsters management
+    Route::resource('monsters', \App\Http\Controllers\Admin\MonsterController::class)->except(['show']);
+    Route::post('monsters/{monster}/add-loot', [\App\Http\Controllers\Admin\MonsterController::class, 'addLoot'])->name('monsters.add-loot');
+    Route::delete('monsters/{monster}/loot/{loot}', [\App\Http\Controllers\Admin\MonsterController::class, 'removeLoot'])->name('monsters.remove-loot');
+    Route::post('monsters/{monster}/add-skill', [\App\Http\Controllers\Admin\MonsterController::class, 'addSkill'])->name('monsters.add-skill');
+    Route::delete('monsters/{monster}/skill/{skill}', [\App\Http\Controllers\Admin\MonsterController::class, 'removeSkill'])->name('monsters.remove-skill');
+    Route::post('monsters/{monster}/force-spawn', [\App\Http\Controllers\Admin\MonsterController::class, 'forceSpawn'])->name('monsters.force-spawn');
+
+    // Monster spawns management
+    Route::resource('monster-spawns', \App\Http\Controllers\Admin\MonsterSpawnController::class)->except(['show']);
+
+    // Active monsters management
+    Route::get('active-monsters', [\App\Http\Controllers\Admin\ActiveMonsterController::class, 'index'])->name('active-monsters.index');
+    Route::post('active-monsters/{activeMonster}/heal', [\App\Http\Controllers\Admin\ActiveMonsterController::class, 'heal'])->name('active-monsters.heal');
+    Route::post('active-monsters/{activeMonster}/kill', [\App\Http\Controllers\Admin\ActiveMonsterController::class, 'kill'])->name('active-monsters.kill');
+    Route::delete('active-monsters/{activeMonster}', [\App\Http\Controllers\Admin\ActiveMonsterController::class, 'destroy'])->name('active-monsters.destroy');
 });

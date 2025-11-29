@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MoveLocationRequest;
+use App\Models\ActiveMonster;
 use App\Models\ActiveNpc;
 use App\Models\Character;
 use App\Models\CorpseContainer;
@@ -75,11 +76,18 @@ class LocationController extends Controller
         $resurrectionStones = ResurrectionStone::where('location_id', $location->id)
             ->get();
 
+        // Получаем активных монстров в локации
+        $monsters = ActiveMonster::where('location_id', $location->id)
+            ->where('is_active', true)
+            ->with(['monster.stats', 'monster.skills'])
+            ->get();
+
         return response()->json([
             'location' => $this->formatLocation($location),
             'exits' => $this->formatExits($location->exits, $character),
             'items' => $this->formatItems($items),
             'npcs' => $this->formatNpcs($npcs),
+            'monsters' => $this->formatMonsters($monsters),
             'corpses' => $this->formatCorpses($corpses, $character),
             'ghosts' => $this->formatGhosts($ghosts),
             'players' => $this->formatPlayers($onlinePlayers, $character),
@@ -138,6 +146,12 @@ class LocationController extends Controller
             DB::transaction(function () use ($character, $newLocation) {
                 $character->location_id = $newLocation->id;
                 $character->save();
+
+                // Если персонаж является призраком, обновляем локацию в состоянии призрака
+                if ($character->isGhost() && $character->ghostState) {
+                    $character->ghostState->location_id = $newLocation->id;
+                    $character->ghostState->save();
+                }
             });
 
             $newLocation->load('exits.toLocation');
@@ -175,6 +189,12 @@ class LocationController extends Controller
             $resurrectionStones = ResurrectionStone::where('location_id', $newLocation->id)
                 ->get();
 
+            // Получаем активных монстров в новой локации
+            $monsters = ActiveMonster::where('location_id', $newLocation->id)
+                ->where('is_active', true)
+                ->with(['monster.stats', 'monster.skills'])
+                ->get();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Вы успешно переместились',
@@ -182,6 +202,7 @@ class LocationController extends Controller
                 'exits' => $this->formatExits($newLocation->exits, $character),
                 'items' => $this->formatItems($items),
                 'npcs' => $this->formatNpcs($npcs),
+                'monsters' => $this->formatMonsters($monsters),
                 'corpses' => $this->formatCorpses($corpses, $character),
                 'ghosts' => $this->formatGhosts($ghosts),
                 'players' => $this->formatPlayers($onlinePlayers, $character),
@@ -564,7 +585,7 @@ class LocationController extends Controller
             return [
                 'id' => $corpse->id,
                 'character_id' => $corpse->character_id,
-                'character_name' => $corpse->character->name,
+                'character_name' => $corpse->character?->name ?? 'Unknown',
                 'corpse_type' => $corpse->corpse_type,
                 'expires_at' => $corpse->expires_at->toIso8601String(),
                 'remaining_minutes' => $corpse->getRemainingMinutes(),
@@ -616,6 +637,43 @@ class LocationController extends Controller
             // Исключаем текущего игрока из списка
             return ! $player['is_current_player'];
         })->values()->toArray();
+    }
+
+    /**
+     * Форматировать данные монстров для ответа.
+     */
+    private function formatMonsters($monsters): array
+    {
+        return $monsters->map(function (ActiveMonster $activeMonster) {
+            $monster = $activeMonster->monster;
+            $stats = $monster->stats;
+
+            if (! $monster) {
+                return null;
+            }
+
+            $healthPercentage = $activeMonster->getHealthPercentage();
+            $manaPercentage = $activeMonster->getManaPercentage();
+
+            return [
+                'id' => $activeMonster->id,
+                'monster_id' => $monster->id,
+                'name' => $monster->name,
+                'description' => $monster->description,
+                'type' => $monster->type,
+                'rank' => $monster->rank,
+                'level' => $monster->level,
+                'ai_behavior' => $monster->ai_behavior,
+                'health_current' => $activeMonster->health_current,
+                'health_max' => $stats?->health_max ?? 100,
+                'health_percentage' => round($healthPercentage, 1),
+                'mana_current' => $activeMonster->mana_current,
+                'mana_max' => $stats?->mana_max ?? 50,
+                'mana_percentage' => round($manaPercentage, 1),
+                'attack_type' => $stats?->attack_type ?? 'physical',
+                'spawned_at' => $activeMonster->spawned_at?->toIso8601String(),
+            ];
+        })->filter()->values()->toArray();
     }
 
     /**

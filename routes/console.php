@@ -45,3 +45,8 @@ Schedule::command('sessions:cleanup')
 Schedule::command('npcs:spawn')
     ->everyTwoMinutes()
     ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+// Спавн монстров каждые 2 минуты
+Schedule::command('monsters:spawn')
+    ->everyTwoMinutes()
+    ->appendOutputTo(storage_path('logs/scheduler.log'));

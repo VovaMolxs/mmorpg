@@ -52,6 +52,59 @@ class Character extends Model
     }
 
     /**
+     * Boot метод для автоматической обработки событий модели.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::saved(function (Character $character) {
+            // Если персонаж мертв и еще не является призраком, создаем состояние призрака
+            if ($character->isDead() && ! $character->isGhost()) {
+                // Проверяем, есть ли уже запись о смерти (последняя смерть)
+                $lastDeath = $character->lastDeath;
+
+                // Если нет записи о смерти, создаем её
+                if (! $lastDeath) {
+                    $lastDeath = CharacterDeath::create([
+                        'character_id' => $character->id,
+                        'location_id' => $character->location_id,
+                        'killed_by_type' => 'environment',
+                        'death_cause' => 'unknown',
+                        'died_at' => now(),
+                    ]);
+                }
+
+                // Создаем состояние призрака
+                GhostState::firstOrCreate(
+                    [
+                        'character_id' => $character->id,
+                    ],
+                    [
+                        'death_id' => $lastDeath->id,
+                        'location_id' => $character->location_id,
+                        'is_visible' => true,
+                    ]
+                );
+            }
+
+            // Если персонаж является призраком, синхронизируем локацию в состоянии призрака
+            if ($character->isGhost() && $character->ghostState) {
+                // Обновляем локацию призрака, если она изменилась
+                if ($character->ghostState->location_id !== $character->location_id) {
+                    $character->ghostState->location_id = $character->location_id;
+                    $character->ghostState->save();
+                }
+            }
+
+            // Если персонаж жив и является призраком, удаляем состояние призрака
+            if (! $character->isDead() && $character->isGhost()) {
+                $character->ghostState()->delete();
+            }
+        });
+    }
+
+    /**
      * Владелец персонажа.
      */
     public function user(): BelongsTo

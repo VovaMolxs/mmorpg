@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             ItemsSeeder::class,
             NeutralNpcsSeeder::class,
             BankerSeeder::class,
+            MonsterSeeder::class,
         ]);
     }
 }

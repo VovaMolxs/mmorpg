@@ -64,6 +64,24 @@
         Спавн NPC
     </a>
     <a
+        href="{{ route('admin.monsters.index') }}"
+        class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.monsters') && !str_starts_with($currentRoute, 'admin.monster-spawns') && !str_starts_with($currentRoute, 'admin.active-monsters') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
+    >
+        Монстры
+    </a>
+    <a
+        href="{{ route('admin.monster-spawns.index') }}"
+        class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.monster-spawns') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
+    >
+        Спавн монстров
+    </a>
+    <a
+        href="{{ route('admin.active-monsters.index') }}"
+        class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.active-monsters') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
+    >
+        Активные монстры
+    </a>
+    <a
         href="{{ route('admin.dialogs.index') }}"
         class="px-4 py-2 border border-[#e3e3e0] dark:border-[#3E3E3A] rounded hover:bg-gray-50 dark:hover:bg-[#0a0a0a] whitespace-nowrap {{ str_starts_with($currentRoute, 'admin.dialogs') ? 'bg-gray-100 dark:bg-[#0a0a0a]' : '' }}"
     >

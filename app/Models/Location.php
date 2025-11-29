@@ -148,6 +148,23 @@ class Location extends Model
     }
 
     /**
+     * Настройки спавна монстров в этой локации.
+     */
+    public function monsterSpawns(): HasMany
+    {
+        return $this->hasMany(MonsterSpawn::class);
+    }
+
+    /**
+     * Активные монстры в этой локации.
+     */
+    public function activeMonsters(): HasMany
+    {
+        return $this->hasMany(ActiveMonster::class)
+            ->where('is_active', true);
+    }
+
+    /**
      * Проверить, доступна ли локация для персонажа по уровню.
      */
     public function isAccessibleByLevel(int $level): bool
